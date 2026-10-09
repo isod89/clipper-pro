@@ -32,7 +32,11 @@
 #define FELUCCA_OTA_DRYRUN 0     /* 1 = stage, ask "success", then undo: no record, no reset */
 #endif
 #ifndef FELUCCA_ID
+#if BOARD_SMK37
+#define FELUCCA_ID "SMK-37 Pro_900"   /* package identity (build.py: the .fwsc marker string) */
+#else
 #define FELUCCA_ID "FM-1_900"    /* package identity (build.py: the .fwsc marker string) */
+#endif
 #endif
 #ifndef FELUCCA_CPU1
 #define FELUCCA_CPU1 1          /* (0.7) the second core (cpu1.c); 0: one core, as before */
@@ -48,7 +52,15 @@
 #endif
 #include "usb.c"
 #ifndef FELUCCA_UART
+#if BOARD_SMK37
+#define FELUCCA_UART 0           /* SMK-37 Pro: TRS MIDI OUT (UART1 TX, PC7), no MIDI IN; PH8 is a key-matrix
+                                  * row there and must never become UART RX. TODO: a TX driver (see the fm1-to-smk37 guide) */
+#else
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 (3.5 mm jack) */
+#endif
+#endif
+#if BOARD_SMK37 && FELUCCA_UART
+#error "BOARD_SMK37: midi_uart.c is the FM-1 MIDI IN driver (RX on PH8, a key-matrix row on the SMK)"
 #endif
 #if FELUCCA_UART
 #include "midi_uart.c"
@@ -128,7 +140,11 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #include "project.c"
 #if FELUCCA_OTA
 static uint8_t recovery_active;
+#if BOARD_SMK37
+#define OTA_IDENTITY (recovery_active ? "SMK-37 Pro_000" : FELUCCA_ID)
+#else
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
+#endif
 #include "ota.c"
 static void recovery_poll(void);
 static uint32_t ota_now_ms(void) { return fm1_ms; }

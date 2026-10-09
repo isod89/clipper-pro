@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
-import { logicalImage, productOf } from "./fm1pkg.js";
+import { blockCount, logicalImage, productOf, validateStockPackage } from "./fm1pkg.js";
 import { Updater, pack7, unpack7 } from "./fm1ota.js";
 
 let failed = 0;
@@ -1655,6 +1655,17 @@ print(",".join(i.filename + ":" + str(i.file_size) for i in z.infolist()))`, zp)
 
 /* ------------------------------------------------------- packages: JS == Python --- */
 async function packages() {
+  /* SMK-37 Pro: the stock v016 package has 36 interleave blocks (outside the repo, read only; skipped without it) */
+  const v016 = join(process.env.SMK_STOCK_DIR || join(HERE, "no-stock-packages"), "SMK-37_Pro_016.fwsc");
+  if (existsSync(v016)) {
+    const raw = readFileSync(v016);
+    const logical = py(`import sys; raw = open(sys.argv[1], "rb").read()
+sys.stdout.buffer.write(b"".join(raw[i * 48:i * 48 + 47] for i in range(36)) + raw[36 * 48:])`, v016);
+    ok(blockCount(raw) === 36 && eq(logicalImage(raw), logical) && productOf(raw) === "SMK-37 Pro_016",
+      "fm1pkg.js: stock SMK-37_Pro_016.fwsc: 36 blocks, identity SMK-37 Pro_016");
+    const st = await validateStockPackage(new Uint8Array(raw));
+    ok(st.product === "SMK-37 Pro_016" && eq(st.image, logical), "fm1pkg.js: the official SMK-37 Pro V016 is accepted for the return");
+  } else console.log("packages: SMK-37 Pro stock package skipped (SMK_STOCK_DIR not set)");
   const pkg = join(HERE, "../build/felucca.fwsc");
   if (!existsSync(pkg)) {
     console.log("packages: skipped (run ./build.sh first)");

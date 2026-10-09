@@ -142,8 +142,13 @@ static void con_flr(const char *p)                  /* flash read over SPI (no X
     static uint8_t b[256];
     int ok, ok2;
     uint32_t a = con_num(&p, &ok), n = con_num(&p, &ok2), i;
+#if BOARD_SMK37
+    if (!ok || a < 0x9D000u || a >= 0x100000u) {
+        con_puts("usage: flr OFFSET [LEN<=256]   (0x9D000..0xFFFFF)\r\n");
+#else
     if (!ok || a < 0x93000u || a >= 0x100000u) {
         con_puts("usage: flr OFFSET [LEN<=256]   (0x93000..0xFFFFF)\r\n");
+#endif
         return;
     }
     if (!ok2 || !n)

@@ -244,6 +244,18 @@ else
     echo "== skip update entry and loader (HOST_ONLY: no build/felucca.fwsc)"
 fi
 
+# SMK-37 Pro (BOARD_SMK37): the flash map, the OTA staging and the loader windows on SMK-layout packages
+# (made here from the FM-1 binaries: only the layout and the protocol are under test)
+$CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test.c
+run "SMK-37 Pro flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, key_mac" "$OUT/smk_flash_test"
+python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
+python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
+run "SMK-37 Pro package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table"     python3 tests/smk_pkg_test.py "$OUT/smk_new.fwsc"
+$CC -DBOARD_SMK37=1 -o "$OUT/ota_test_smk" tests/ota_test.c
+run "M-UPGRADE entry, SMK-37 Pro build (staging 0xBB000, parm ota-SMK-37 Pro_016)" "$OUT/ota_test_smk" "$OUT/smk_new.fwsc"
+$CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c
+run "update loader, SMK-37 Pro: app area 0x4000-0x9CFFF, protected ranges untouched"     "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
+
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
 run "scales: white-key mapping and note lifecycle" "$OUT/scale_test"
