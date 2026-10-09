@@ -148,6 +148,50 @@ static void smk_faders(void)
         ui.force = 1;
     }
 }
+
+/* the wheels (stock: mux C address 4 = pitch, 5 = mod), self-calibrating: the pitch wheel's rest is its centre
+ * (taken at power-on, followed slowly while it rests), each wheel's range grows to what it has reached (the
+ * travel is short: raw ~445..640 pitch, ~474..629 mod on a unit). Pitch: +-SMK_BEND_ST semitones with a dead
+ * band around the centre; mod: 0..127, up (lower raw) = more (voice.c perf_*) */
+static void smk_wheels(void)
+{
+    enum { DEAD = 12, SPAN0 = 80, MOD_LO = 485, MOD_HI = 615 };
+    static int32_t pc, plo, phi, mlo, mhi, rest;
+    int32_t p = fm1_in.wheel[0], m = fm1_in.wheel[1], d, b, mw;
+    if (fm1_in.frames < 300u)                     /* (the readings settle) */
+        return;
+    if (!pc) {
+        pc = p;
+        plo = p - SPAN0;
+        phi = p + SPAN0;
+        mlo = m < MOD_LO ? m : MOD_LO;
+        mhi = m > MOD_HI ? m : MOD_HI;
+    }
+    if (p < plo)
+        plo = p;
+    if (p > phi)
+        phi = p;
+    if (m < mlo)
+        mlo = m;
+    if (m > mhi)
+        mhi = m;
+    d = p - pc;
+    if (d > -DEAD && d < DEAD) {
+        b = 0;
+        if (++rest > 200) {                        /* resting: the centre follows a slow drift */
+            pc += d > 0 ? 1 : d < 0 ? -1 : 0;
+            rest = 0;
+        }
+    } else {
+        rest = 0;
+        b = d > 0 ? (d - DEAD) * (SMK_BEND_ST * 4096) / (phi - pc - DEAD > 1 ? phi - pc - DEAD : 1)
+                  : (d + DEAD) * (SMK_BEND_ST * 4096) / (pc - plo - DEAD > 1 ? pc - plo - DEAD : 1);
+        b = clamp(b, -SMK_BEND_ST * 4096, SMK_BEND_ST * 4096);
+    }
+    mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
+    perf_bend = b;
+    perf_modw = clamp(mw, 0, 127);
+}
 #endif
 
 static void fm1_fault(const fm1_crash_t *c)
@@ -375,6 +419,7 @@ static void fm1_main(void)
         ui_leds();
 #if BOARD_SMK37
         smk_faders();
+        smk_wheels();
         padled_flush();                                 /* the pads' colours, between LCD transfers */
 #endif
         ui_draw();
@@ -386,6 +431,9 @@ static void fm1_main(void)
         felucca_dbg.stage = 9;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
+#if BOARD_SMK37
+            smk_wheels();                       /* (bends follow the wheel, not the screen) */
+#endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif

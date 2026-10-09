@@ -284,6 +284,8 @@ static void con_smk(void)                               /* the SMK-37 Pro inputs
     con_puts("\r\n");
     con_kv("wheel0", fm1_in.wheel[0]);
     con_kv("wheel1", fm1_in.wheel[1]);
+    con_kv("bend", perf_bend);
+    con_kv("modw", perf_modw);
     con_kv("pedal", fm1_in.pedal);
     con_kv("batt", fm1_in.batt);
     con_kx("buttons", fm1_in.buttons);
