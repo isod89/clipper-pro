@@ -251,6 +251,9 @@ static void fm1_main(void)
     audio_init();
 #if FELUCCA_CDC
     usb_cdc_on = usb_serial;                            /* menu USB SERIAL (persist_boot read it): before USB starts */
+#if defined(FELUCCA_CDC_ON) && FELUCCA_CDC_ON
+    usb_cdc_on = 1;                                     /* (bring-up builds: the console without the menu) */
+#endif
 #endif
 #if FELUCCA_UAC && FELUCCA_UAC_48K
     usb_rate_mode = usb_rate;                           /* (0.7) menu USB RATE, the same way */

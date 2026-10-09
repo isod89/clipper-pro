@@ -71,9 +71,9 @@ static const uint8_t SMK_KEYC[FM1_NKEY][2] = {
     {0xe1, 0x13}, {0xf1, 0x14}, {0x64, 0x24}, {0x74, 0x34}, {0x84, 0x44}, {0x94, 0x54}, {0xa4, 0xd4},
     {0xb4, 0xf4}, {0xc4, 0xe4},
 };
-/* button id -> matrix code (stock table). Names (spec, ids 6..17 to confirm on hardware):
+/* button id -> matrix code (stock table). Printed names (confirmed on a unit, 2026-10-09):
  * 0 KNOB BANK, 1 FADER BANK, 2 <, 3 >, 4 OCTAVE-, 5 OCTAVE+, 6 ARP, 7 NOTE REPEAT, 8 SCALE, 9 CHORD,
- * 10 GLOBE, 11 BT, 12 PLAY, 13 STEP, 14 REC, 15 SEQ, 16 SEQ PLAY, 17 SEQ REC */
+ * 10 GLOBE, 11 BT, 12 PATCH, 13 PARA, 14 FX, 15 SEQ, 16 SEQ PLAY, 17 SEQ REC */
 static const uint8_t SMK_BTNC[FM1_NBTN] = {0x26, 0x76, 0x96, 0x56, 0x66, 0x36, 0x75, 0x65, 0x25,
                                             0x45, 0x15, 0x86, 0x95, 0x55, 0x85, 0x35, 0x16, 0x46};
 /* encoder i: A and B matrix codes (stock table; K1..K8 order to confirm) */
@@ -87,9 +87,12 @@ static const uint8_t SMK_PADMUX[8] = {1, 2, 3, 0, 4, 7, 5, 6};
 /* mux C (ch2): address 0..3 -> fader 1,2,3,0; 4, 5 wheels; 6 pedal; 7 battery */
 static const uint8_t SMK_FADMUX[4] = {1, 2, 3, 0};
 enum { SMK_ADC_PADA = 1, SMK_ADC_PADB = 8, SMK_ADC_MUXC = 2 };
-/* pad i plays white key i of the FM-1's 27 (F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5): the step grid,
- * the drum sounds and every layer's tiles land on the pads (pads 0..7 the top row: to confirm) */
-static const uint8_t SMK_PAD_NOTE[SMK_NPAD] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
+/* the pads are the 16 white keys of the FM-1's 27 (F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5): the step
+ * grid, the drum sounds and every layer's tiles land on them, in reading order: the top row (hardware pads 8..15,
+ * mux B; confirmed on a unit) white keys 0..7, the bottom row (pads 0..7, mux A) 8..15 */
+static const uint8_t SMK_WHITE_NOTE[SMK_NPAD] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
+#define SMK_PAD_OF_WHITE(w) ((w) < 8u ? (w) + 8u : (w) - 8u)   /* white key 0..15 -> hardware pad */
+#define SMK_WHITE_OF_PAD(p) ((p) < 8u ? (p) + 8u : (p) - 8u)   /* (the same swap both ways) */
 
 #define SMK_TRIM_FLASH 0xC1000u   /* USRTRIM: the factory calibration record ("trimdat"), never written here */
 /* 5-point velocity curves (trimdata, flash 0xC1000: +0x08 16 pads x 5 u16, +0xA8 37 keys x 5 u16) */
@@ -118,6 +121,9 @@ static volatile struct {
     uint16_t fad_acc[4];         /* faders: 0..1023 IIR */
     uint8_t fader[4];            /* 0..127 */
     uint16_t wheel[2], pedal, batt;   /* raw 0..1023 (mux C addresses 4, 5, 6, 7) */
+    uint16_t fad_raw[4];         /* (debug: the last raw fader readings) */
+    uint16_t fad_hist[4][2];     /* the two readings before: a median of 3 drops a lone spike */
+    uint32_t adc_ok, adc_miss;   /* (debug: conversions read / not finished within a tick) */
     uint32_t frames;
 } fm1_in;
 
@@ -420,7 +426,7 @@ static void fm1__frame(void)
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
-    uint32_t n = SMK_PAD_NOTE[pad], bit = 1u << n;
+    uint32_t n = SMK_WHITE_NOTE[SMK_WHITE_OF_PAD(pad)], bit = 1u << n;
     if (vel) {
         fm1_in.key_vel[SMK_KEY_F3 + n] = (uint8_t)vel;
         fm1_in.pnotes |= bit;
@@ -479,12 +485,19 @@ static void smk__analog(uint32_t slot, uint32_t raw)
     } else if (ch == 1u) {
         smk__pad(SMK_PADMUX[a] + 8u, raw);
     } else if (a < 4u) {
-        uint32_t f = SMK_FADMUX[a], acc = fm1_in.fad_acc[f], v;
-        acc = acc + (raw * 16u - acc) / 4u;                  /* (x16 IIR) */
+        uint32_t f = SMK_FADMUX[a], h0 = fm1_in.fad_hist[f][0], h1 = fm1_in.fad_hist[f][1], m, v;
+        int32_t acc = fm1_in.fad_acc[f];
+        fm1_in.fad_raw[f] = (uint16_t)raw;
+        fm1_in.fad_hist[f][1] = (uint16_t)h0;
+        fm1_in.fad_hist[f][0] = (uint16_t)raw;
+        m = raw > h0 ? (h0 > h1 ? h0 : raw > h1 ? h1 : raw) : (raw > h1 ? raw : h0 > h1 ? h1 : h0);   /* median */
+        acc += ((int32_t)m * 16 - acc) / 4;                  /* x16 IIR (signed: it falls as well as rises) */
         fm1_in.fad_acc[f] = (uint16_t)acc;
-        v = acc / 16u / 8u;
-        if (v > fm1_in.fader[f] + 1u || v + 1u < fm1_in.fader[f] || v == 0u || v == 127u)
-            fm1_in.fader[f] = (uint8_t)(v > 127u ? 127u : v);
+        v = (uint32_t)acc / 16u / 8u;
+        if (v > 127u)
+            v = 127u;
+        if (v > fm1_in.fader[f] + 1u || v + 1u < fm1_in.fader[f] || (v != fm1_in.fader[f] && (v == 0u || v == 127u)))
+            fm1_in.fader[f] = (uint8_t)v;                    /* +-1 dead band, the ends reachable */
     } else if (a < 6u) {
         fm1_in.wheel[a - 4u] = (uint16_t)(fm1_in.wheel[a - 4u] + ((int32_t)raw - fm1_in.wheel[a - 4u]) / 4);
     } else if (a == 6u) {
@@ -499,7 +512,9 @@ FM1_INLINE void smk__adc_start(uint32_t ch)
     SMK_ADC_CON = 0;
     if (SMK_WLA_CON0 & (1u << 14))
         SMK_WLA_CON0 &= ~(1u << 14);
-    SMK_ADC_CON = 0xF04Eu | ((ch & 0xFu) << 8);
+    /* the stock SMK timing (0x407D without IE): start delay 4 x 8 ADC clocks, divider 0b101; done in ~40 us,
+     * well inside a tick. (The FM-1's 0xF04E, delay 15 x 8 at /96, takes ~200 us: it never finished in time.) */
+    SMK_ADC_CON = 0x400Du | ((ch & 0xFu) << 8);
     SMK_ADC_CON |= 0x10u;
     SMK_ADC_CON |= 0x40u;
 }
@@ -511,8 +526,12 @@ static void fm1_input_tick(void)
     static const uint8_t CH[3] = {SMK_ADC_PADA, SMK_ADC_PADB, SMK_ADC_MUXC};
     uint32_t col = smk_col, next;
     if (smk_adc_slot != 0xFF) {                              /* the conversion of the last tick */
-        if (SMK_ADC_CON & 0x80u)
+        if (SMK_ADC_CON & 0x80u) {
+            fm1_in.adc_ok++;
             smk__analog(smk_adc_slot, SMK_ADC_RES & 0x3FFu);
+        } else {
+            fm1_in.adc_miss++;
+        }
         SMK_ADC_CON = 0x40u;
         SMK_ADC_CON = 0;
         smk_adc_slot = 0xFF;

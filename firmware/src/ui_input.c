@@ -261,15 +261,15 @@ static void ui_leds(void)
 #if BOARD_SMK37
     for (c = 0; c < SMK_NLED; c++)                 /* the buttons: on / off (no dim layers) */
         fm1_led[c] = nl[c];
-    {   /* the pads: white key i on pad i, in the selected track's colour: lit, glow, backlight */
-        static const uint8_t PAL[NTRK][3] = {{255, 40, 120}, {40, 160, 255}, {120, 255, 60}, {255, 140, 0}};
+    if ((int32_t)(fm1_ms - padled_hold_until) >= 0) {   /* the pads: white key i, in the selected track's colour */
+        static const uint8_t PAL[NTRK][3] = {{255, 0, 0}, {0, 255, 0}, {0, 80, 255}, {255, 180, 0}};   /* red, green, blue, drums yellow */
         const uint8_t *col = PAL[song.sel % NTRK];
         for (c = 0; c < 16u; c++) {
             uint32_t id = LED_KEY(key_of_white(c)), sh = nl[id] ? 2u : dl[id] ? 5u : bl[id] ? 7u : 0u;
             if (sh)
-                padled_set(c, (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
+                padled_set(SMK_PAD_OF_WHITE(c), (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
             else
-                padled_set(c, 0, 0, 0);
+                padled_set(SMK_PAD_OF_WHITE(c), 0, 0, 0);
         }
     }
 #else

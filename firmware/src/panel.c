@@ -14,7 +14,7 @@ static const char *const B_NAME[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO",
 static const char *const E_NAME[NE] = {"SELECT", "ALGORITHM", "PRESETS", "KNOB 1", "KNOB 2",
                                         "KNOB 3", "KNOB 4"};
 #if BOARD_SMK37
-#define PANEL_MAGIC 0x504E5331u          /* "PNS1" (SMK-37 Pro): bump when PANEL_DEFAULT changes */
+#define PANEL_MAGIC 0x504E5332u          /* "PNS2" (SMK-37 Pro): bump when PANEL_DEFAULT changes */
 #else
 #define PANEL_MAGIC 0x50414E35u          /* "PAN5": bump when PANEL_DEFAULT changes */
 #endif
@@ -28,14 +28,14 @@ typedef struct {
 panel_t panel __attribute__((section(".noinit")));
 
 #if BOARD_SMK37
-/* SMK-37 Pro (smk_input.h button ids; the printed SMK label -> the FM-1 function):
- * NOTE REPEAT = FX, SCALE = SEL, CHORD = ENV, FADER BANK = LFO, STEP = EDIT, GLOBE = GLO,
- * KNOB BANK = HOME, SEQ REC = SAVE, ARP, SEQ, PLAY, REC, OCTAVE- / + as printed.
- * Knobs K1 = SELECT, K2 = ALGORITHM, K3 = PRESETS, K5..K8 = KNOB 1..4 (K4 free).
- * Unproven on hardware: HARDWARE CALIBRATION (OCT- + OCT+ at power-on) re-teaches all of it. */
+/* SMK-37 Pro (smk_input.h button ids, confirmed on a unit; the printed SMK label -> the FM-1 function):
+ * FX = FX, SCALE = SEL, CHORD = ENV, NOTE REPEAT = LFO, PARA = EDIT, GLOBE = GLO, PATCH = HOME, BT = SAVE,
+ * ARP, SEQ as printed, SEQ PLAY = PLAY, SEQ REC = REC, OCTAVE- / + as printed. KNOB BANK, FADER BANK, < and >
+ * stay free. Knobs K1 = SELECT, K2 = ALGORITHM, K3 = PRESETS, K5..K8 = KNOB 1..4 (K4 free).
+ * HARDWARE CALIBRATION (OCT- + OCT+ at power-on) re-teaches all of it. */
 static const panel_t PANEL_DEFAULT = {
     PANEL_MAGIC,
-    {7, 8, 9, 1, 13, 10, 0, 17, 6, 15, 12, 14, 4, 5},
+    {14, 8, 9, 7, 13, 10, 12, 11, 6, 15, 16, 17, 4, 5},
     {0, 1, 2, 4, 5, 6, 7},
     {1, 1, 1, 1, 1, 1, 1},
 };
