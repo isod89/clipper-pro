@@ -1897,6 +1897,21 @@ static uint32_t key_lvl(void)
     uint32_t b = fm1_in.buttons;
     return (b & dyn_bit[0]) ? LV_GHOST : (b & dyn_bit[1]) ? LV_HARD : LV_NORM;
 }
+#if BOARD_SMK37
+/* SMK-37 Pro: velocity keys and pads. A key's velocity (a pad: its white key's, smk_input.h); on the drum
+ * track it picks the level unless OCT- / OCT+ is held */
+static uint32_t key_vel(uint32_t k) { return fm1_in.key_vel[SMK_KEY_F3 + k]; }
+static uint32_t key_lvl_of(uint32_t k)
+{
+    uint32_t v = key_vel(k);
+    if (fm1_in.buttons & (dyn_bit[0] | dyn_bit[1]))
+        return key_lvl();
+    return v < 40u ? LV_GHOST : v < 80u ? LV_SOFT : v > 112u ? LV_HARD : LV_NORM;
+}
+#else
+#define key_vel(k) 100u
+#define key_lvl_of(k) key_lvl()
+#endif
 
 /* CHORD+: the modifiers held (the black keys down in chord mode) */
 static uint32_t chord_mods(void)
@@ -2015,7 +2030,7 @@ static void key_down(uint32_t k)
         return;
     }
     if (is_drum(t)) {                                 /* the drum track: the key's lane */
-        uint32_t lane = lane_of_key(k), lvl = key_lvl();
+        uint32_t lane = lane_of_key(k), lvl = key_lvl_of(k);
         kb_nt[k][0] = (uint8_t)lane;
         kb_n[k] = 1;
         if (layer == LY_ROLL) {
@@ -2061,9 +2076,9 @@ static void key_down(uint32_t k)
             in_chord_n = kb_n[k];
             in_chord_i = i;
             if (!midi_local_off)                    /* (1.0: LOCAL OFF: the keys only go out) */
-                input_on(t, kb_nt[k][i], 100);
+                input_on(t, kb_nt[k][i], key_vel(k));
             in_chord = 0;
-            midi_out_event(0x09u | (0x90u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16 | 100u << 24);
+            midi_out_event(0x09u | (0x90u | mc) << 8 | (uint32_t)kb_nt[k][i] << 16 | key_vel(k) << 24);
         }
         in_key = 0;
         /* the pen of the SEQ layer: the keys down now (a chord), else this note */
@@ -2159,10 +2174,49 @@ static void audition_block(void)
             trk_note_on(TDRUM, LANE_NOTE[l], lvl_vel((lv >> (2u * l)) & 3u, 100));
 }
 
+#if BOARD_SMK37
+/* the SMK's 10 keys beyond the FM-1's 27 (C3..E3 below, G#5..C6 above): plain notes on a synth track
+ * in PLAY, chromatic from the FM-1 key map (53 = F3), with OCT and TRANS; silent elsewhere */
+static uint8_t ext_note[FM1_NKEY], ext_trk[FM1_NKEY];   /* note + 1 sounding, 0 = none */
+static void ext_keys_block(void)
+{
+    int32_t e;
+    while ((e = smk_extkey_take()) >= 0) {
+        uint32_t k = (uint32_t)e >> 8, v = (uint32_t)e & 0xFFu, sel = song.sel % NTRK, mc;
+        track_t *t = &trk[sel];
+        if (k >= FM1_NKEY)
+            continue;
+        if (!v) {
+            if (ext_note[k]) {
+                t = &trk[ext_trk[k] % NTRK];
+                mc = trk_midi_ch(ext_trk[k] % NTRK);
+                input_off(t, ext_note[k] - 1u);
+                midi_out_event(0x08u | (0x80u | mc) << 8 | (uint32_t)(ext_note[k] - 1u) << 16);
+                ext_note[k] = 0;
+            }
+            continue;
+        }
+        if (is_drum(t) || layer_now() != LY_PLAY || ext_note[k])
+            continue;
+        {
+            uint32_t n = (uint32_t)clamp(53 + (int32_t)k - (int32_t)SMK_KEY_F3 + 12 * song.octave + t->p[P_TRANS], 0, 127);
+            ext_note[k] = (uint8_t)(n + 1u);
+            ext_trk[k] = (uint8_t)sel;
+            mc = trk_midi_ch(sel);
+            input_on(t, n, v);
+            midi_out_event(0x09u | (0x90u | mc) << 8 | n << 16 | v << 24);
+        }
+    }
+}
+#endif
+
 static void keyboard_block(void)
 {
     uint32_t cur = fm1_in.notes, ch = cur ^ kb_prev, k, r;
     audition_block();
+#if BOARD_SMK37
+    ext_keys_block();
+#endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
             if (roll[r].on)

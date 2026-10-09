@@ -126,6 +126,30 @@ static void hexs(char *b, uint32_t v)
     b[8] = 0;
 }
 
+#if BOARD_SMK37
+/* the SMK-37 Pro's 4 faders: the levels of tracks 1..4 (the drum track: DRUMS LVL). A fader takes over
+ * only once it moves, so power-on and a loaded project keep their levels. (Fader order: to confirm.) */
+static void smk_faders(void)
+{
+    static uint8_t last[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+    uint32_t i;
+    for (i = 0; i < 4u && i < NTRK; i++) {
+        uint32_t v = fm1_in.fader[i];
+        int16_t *lv;
+        if (last[i] == 0xFF || fm1_in.frames < 200u) {   /* (the first readings settle) */
+            last[i] = (uint8_t)v;
+            continue;
+        }
+        if (v == last[i])
+            continue;
+        last[i] = (uint8_t)v;
+        lv = i == TRK_DRUM ? &song.g[G_DRLVL] : &trk[i].p[P_LEVEL];
+        *lv = (int16_t)v;
+        ui.force = 1;
+    }
+}
+#endif
+
 static void fm1_fault(const fm1_crash_t *c)
 {
     char b[12];
@@ -215,6 +239,10 @@ static void fm1_main(void)
     felucca_dbg.prev_rst = fm1_boot.p3_rst;
     fm1_input_init();
     fm1_adc_init();
+#if BOARD_SMK37 && FELUCCA_FLASH
+    if (flash_ok)                                   /* the factory key / pad velocity curves (USRTRIM, read only) */
+        smk_trim_load(fm1_xip_ptr(SMK_TRIM_FLASH));
+#endif
     panel_init();
     felucca_init();
     cpu1_boot();                                        /* (0.7) the second core: at power-on, before the audio and the
@@ -235,7 +263,7 @@ static void fm1_main(void)
     fm1_guard_lock_top();
     fm1_irq_enable_all();
     fm1_delay_ms(30);
-    if ((fm1_in.buttons & 3u) == 3u) {
+    if ((fm1_in.buttons & FM1_OCT_BOTH) == FM1_OCT_BOTH) {
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
@@ -342,6 +370,10 @@ static void fm1_main(void)
         ui_input();
         felucca_dbg.stage = 2;
         ui_leds();
+#if BOARD_SMK37
+        smk_faders();
+        padled_flush();                                 /* the pads' colours, between LCD transfers */
+#endif
         ui_draw();
         felucca_dbg.stage = 8;
         autosave_tick();                                /* the working project into flash, when quiet */

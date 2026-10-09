@@ -6,10 +6,16 @@
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+#if BOARD_SMK37
+#include "smk_input.h"           /* keys, buttons, encoders, LEDs, pads, faders, wheels, battery */
+#else
 #include "fm1_input.h"
+#endif
 #include "fm1_timer.h"
 #include "fm1_audio.h"
+#if !BOARD_SMK37
 #include "fm1_adc.h"
+#endif
 #include "fm1_lcd_hw.h"
 #include "fm1_cpu1.h"      /* (0.7) the second core (X0X, via SLOOP 2.7): started in main.c, half the voices (voice.c) */
 #include "felucca_tables.h"

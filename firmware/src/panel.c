@@ -13,7 +13,11 @@ static const char *const B_NAME[NB] = {"FX", "SEL", "ENV", "LFO", "EDIT", "GLO",
                                         "ARP", "SEQ", "PLAY", "REC", "OCT-", "OCT+"};
 static const char *const E_NAME[NE] = {"SELECT", "ALGORITHM", "PRESETS", "KNOB 1", "KNOB 2",
                                         "KNOB 3", "KNOB 4"};
+#if BOARD_SMK37
+#define PANEL_MAGIC 0x504E5331u          /* "PNS1" (SMK-37 Pro): bump when PANEL_DEFAULT changes */
+#else
 #define PANEL_MAGIC 0x50414E35u          /* "PAN5": bump when PANEL_DEFAULT changes */
+#endif
 
 typedef struct {
     uint32_t magic;
@@ -23,20 +27,34 @@ typedef struct {
 } panel_t;
 panel_t panel __attribute__((section(".noinit")));
 
+#if BOARD_SMK37
+/* SMK-37 Pro (smk_input.h button ids; the printed SMK label -> the FM-1 function):
+ * NOTE REPEAT = FX, SCALE = SEL, CHORD = ENV, FADER BANK = LFO, STEP = EDIT, GLOBE = GLO,
+ * KNOB BANK = HOME, SEQ REC = SAVE, ARP, SEQ, PLAY, REC, OCTAVE- / + as printed.
+ * Knobs K1 = SELECT, K2 = ALGORITHM, K3 = PRESETS, K5..K8 = KNOB 1..4 (K4 free).
+ * Unproven on hardware: HARDWARE CALIBRATION (OCT- + OCT+ at power-on) re-teaches all of it. */
+static const panel_t PANEL_DEFAULT = {
+    PANEL_MAGIC,
+    {7, 8, 9, 1, 13, 10, 0, 17, 6, 15, 12, 14, 4, 5},
+    {0, 1, 2, 4, 5, 6, 7},
+    {1, 1, 1, 1, 1, 1, 1},
+};
+#else
 static const panel_t PANEL_DEFAULT = {
     PANEL_MAGIC,
     {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 0, 1},   /* PLAY = 12, REC = 13 */
     {0, 1, 6, 2, 3, 4, 5},                           /* SELECT = enc 0, ALGORITHM = enc 1, PRESETS = enc 6 */
     {1, 1, 1, 1, 1, 1, 1},
 };
+#endif
 
 static void panel_init(void)                     /* also after a flash load: ids are used as array indexes and shifts */
 {
     uint32_t i, ok = panel.magic == PANEL_MAGIC;
     for (i = 0; ok && i < NB; i++)
-        ok = panel.btn[i] < 14u;
+        ok = panel.btn[i] < FM1_NBTN;
     for (i = 0; ok && i < NE; i++)
-        ok = panel.enc[i] < 7u && (panel.dir[i] == 1 || panel.dir[i] == -1);
+        ok = panel.enc[i] < FM1_NENC && (panel.dir[i] == 1 || panel.dir[i] == -1);
     if (!ok)
         panel = PANEL_DEFAULT;
 }

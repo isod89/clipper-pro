@@ -4,6 +4,21 @@
 /* ----------------------------------------------------------- LEDs --- */
 /* The LED picture is built off-line and copied one byte per column: clearing
  * and relighting would let the 10 kHz scan catch the dark gap and flicker. */
+#if BOARD_SMK37
+/* SMK-37 Pro: one flag per id. Ids 0..18 are the button LEDs (smk_input.h), the note keys (no LEDs of
+ * their own) take LED_KEY0 + k; ui_leds shows white keys F3..G5 on the 16 RGB pads. */
+#define LED_BUF 64u
+#define LED_KEY0 32u
+#define LED_KEY(k) (LED_KEY0 + (k))
+static void led_pos_init(void) {}
+static void led_put(uint8_t *nl, uint32_t id, int on)
+{
+    if (id < LED_BUF && on)
+        nl[id] = 1;
+}
+#else
+#define LED_BUF FM1_NCOL
+#define LED_KEY(k) (14u + (k))
 static uint8_t led_pos[41];                        /* (col << 3) | row bit, 0xFF = none */
 
 static void led_pos_init(void)
@@ -24,6 +39,7 @@ static void led_put(uint8_t *nl, uint32_t id, int on)
     if (q != 0xFF && on)
         nl[q >> 3] |= (uint8_t)(1u << (q & 7u));
 }
+#endif
 
 static const uint8_t FAM_BTN[FAM_COUNT] = {B_HOME, B_ENV, B_LFO, B_FX, B_SCL, B_EDIT, B_GLO, B_SAVE,
                                            B_ARP, B_SEQ, B_HOME};   /* button of each page family (TRACKS: HOME) */
@@ -211,7 +227,7 @@ static uint32_t lights_keys_mask(void)
 
 static void ui_leds(void)
 {
-    uint8_t nl[FM1_NCOL] = {0}, dl[FM1_NCOL] = {0}, bl[FM1_NCOL] = {0};
+    uint8_t nl[LED_BUF] = {0}, dl[LED_BUF] = {0}, bl[LED_BUF] = {0};
     uint32_t k, c, keys, guide, back;
     static uint8_t ready;
     if (!ready) {
@@ -235,19 +251,35 @@ static void ui_leds(void)
     guide = (keys_guide() | keys_notes_dim()) & ~keys;
     back = lights_keys_mask() & ~keys & ~guide;
     for (k = 0; k < 27u; k++) {
-        led_put(nl, 14u + k, (int)((keys >> k) & 1u));
-        led_put(dl, 14u + k, (int)((guide >> k) & 1u));
-        led_put(bl, 14u + k, (int)((back >> k) & 1u));
+        led_put(nl, LED_KEY(k), (int)((keys >> k) & 1u));
+        led_put(dl, LED_KEY(k), (int)((guide >> k) & 1u));
+        led_put(bl, LED_KEY(k), (int)((back >> k) & 1u));
     }
     if (lights_lvl)                                /* menu LIGHTS: every button glows, the lit ones stay full */
         for (k = 0; k < NB; k++)
             led_put(bl, panel.btn[k], 1);
+#if BOARD_SMK37
+    for (c = 0; c < SMK_NLED; c++)                 /* the buttons: on / off (no dim layers) */
+        fm1_led[c] = nl[c];
+    {   /* the pads: white key i on pad i, in the selected track's colour: lit, glow, backlight */
+        static const uint8_t PAL[NTRK][3] = {{255, 40, 120}, {40, 160, 255}, {120, 255, 60}, {255, 140, 0}};
+        const uint8_t *col = PAL[song.sel % NTRK];
+        for (c = 0; c < 16u; c++) {
+            uint32_t id = LED_KEY(key_of_white(c)), sh = nl[id] ? 2u : dl[id] ? 5u : bl[id] ? 7u : 0u;
+            if (sh)
+                padled_set(c, (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
+            else
+                padled_set(c, 0, 0, 0);
+        }
+    }
+#else
     for (c = 0; c < FM1_NCOL; c++) {
         fm1_led[c] = nl[c];
         fm1_led_dim[c] = dl[c];
         fm1_led_bg[c] = (uint8_t)(bl[c] & ~nl[c]);
     }
     fm1_led_bg_ns = LIGHTS_NS[lights_lvl % LIGHTS_N];
+#endif
 }
 
 /* ---------------------------------------------------------- input --- */
@@ -1120,7 +1152,7 @@ static void ui_input(void)
         if (ev)
             ui.force = 1;
     }
-    for (id = 0; id < 14u; id++) {
+    for (id = 0; id < FM1_NBTN; id++) {
         if (!((pressed >> id) & 1u))
             continue;
         b = panel_btn_of(id);
@@ -1248,7 +1280,7 @@ static void panel_setup(void)
             if (fm1_ms - t0 > SETUP_IDLE_MS)
                 goto timeout;
         }
-        for (id = 0; id < 14u; id++)
+        for (id = 0; id < FM1_NBTN; id++)
             if (((p & ~used) >> id) & 1u)
                 break;
         panel.btn[i] = (uint8_t)id;
@@ -1260,17 +1292,17 @@ static void panel_setup(void)
         int32_t st = 0;
         draw_text_box(0, 80, 240, &FONT_S, "TURN RIGHT", C_GRAY, 1);
         draw_text_box(0, 100, 240, &FONT_L, E_NAME[i], C_WHITE, 1);
-        for (e = 0; e < 7u; e++)
+        for (e = 0; e < FM1_NENC; e++)
             fm1_enc_take(e);
         t0 = fm1_ms;
         for (;;) {
             fm1_wdt_feed();
             if (fm1_ms - t0 > SETUP_IDLE_MS)
                 goto timeout;
-            for (e = 0; e < 7u; e++)
+            for (e = 0; e < FM1_NENC; e++)
                 if (!((used >> e) & 1u) && (st = fm1_enc_take(e)) != 0)
                     break;
-            if (e < 7u)
+            if (e < FM1_NENC)
                 break;
         }
         panel.enc[i] = (uint8_t)e;
