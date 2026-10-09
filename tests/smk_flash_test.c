@@ -72,7 +72,8 @@ int main(void)
     check("storage.c: settings 0xAD000/0xAE000, projects from 0x9D000",
           st_sector(OBJ_SETTINGS, 0) == 0xAD000u && st_sector(OBJ_SETTINGS, 1) == 0xAE000u && st_sector(OBJ_PROJECT0, 0) == 0x9D000u);
     check("FL_PLAIN_LO = the VM start 0x9D000", FL_PLAIN_LO == 0x9D000u);
-    check("FL_JEDEC_OK: 0x856014 only", FL_JEDEC_OK(0x856014u) && !FL_JEDEC_OK(0u) && !FL_JEDEC_OK(0xFFFFFFu));
+    check("FL_JEDEC_OK: the SMK part 0xEB6014 and 0x856014 only", FL_JEDEC_OK(0xEB6014u) && FL_JEDEC_OK(0x856014u) &&
+          !FL_JEDEC_OK(0u) && !FL_JEDEC_OK(0xFFFFFFu) && !FL_JEDEC_OK(0xEB6015u));
     printf("%s\n", bad ? "SMK FLASH TEST FAILED" : "smk flash test passed");
     return bad != 0;
 }
