@@ -147,7 +147,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #if FELUCCA_OTA
 static uint8_t recovery_active;
 #if BOARD_SMK37
-#define OTA_IDENTITY (recovery_active ? "SMK-37 Pro_000" : FELUCCA_ID)
+#define OTA_IDENTITY (recovery_active ? SMK_MODEL "_000" : FELUCCA_ID)
 #else
 #define OTA_IDENTITY (recovery_active ? "FM-1_000" : FELUCCA_ID)
 #endif

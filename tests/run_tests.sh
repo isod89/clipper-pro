@@ -253,6 +253,14 @@ python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.b
 run "SMK-37 Pro package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table"     python3 tests/smk_pkg_test.py "$OUT/smk_new.fwsc"
 $CC -DBOARD_SMK37=1 -o "$OUT/ota_test_smk" tests/ota_test.c
 run "M-UPGRADE entry, SMK-37 Pro build (staging 0xBB000, parm ota-SMK-37 Pro_016)" "$OUT/ota_test_smk" "$OUT/smk_new.fwsc"
+for m in 1 2; do                         # the MODEL=elite / mke builds of ota.c
+    $CC -DBOARD_SMK37=1 -DT_MODEL=$m -o "$OUT/ota_test_smk_m$m" tests/ota_test.c
+    run "M-UPGRADE entry, SMK-37 model $m (1 Elite, 2 MKE-P37): identity and parm under its name" "$OUT/ota_test_smk_m$m" "$OUT/smk_new.fwsc"
+done
+for m in "elite:SMK-37 Elite_900" "mke:MKE-P37_900"; do
+    f="build/sloop-smk37-${m%%:*}.fwsc"
+    [ -f "$f" ] && run "SMK-37 ${m%%:*} build package: layout, identity ${m#*:}" python3 tests/smk_pkg_test.py "$f" "${m#*:}"
+done
 $CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c
 run "update loader, SMK-37 Pro: app area 0x4000-0x9CFFF, protected ranges untouched"     "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
 
