@@ -78,6 +78,8 @@ run "punch-in FX: 16 effects, bounded, dry after release, FX-held keys" "$OUT/pu
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tests/ui_pages_test.c -lm
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
+$CC -o "$OUT/smk_wheel_test" tests/smk_wheel_test.c
+run "SMK-37 Pro pitch wheel: the bend is back to 0 at rest, however slowly the wheel was moved" "$OUT/smk_wheel_test"
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
 UBSAN="${CC_UB:-cc} -DCLIPPER_SYNTH=0 -O1 -w -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
