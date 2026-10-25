@@ -56,6 +56,10 @@
 #ifndef FELUCCA_UAC_TONE
 #define FELUCCA_UAC_TONE 0       /* bench: the USB input sends test triangles instead of the music */
 #endif
+#if BOARD_SMK37
+#include "smk_uart_tx.h"
+#include "smk_midi_out.h"     /* SMK-37: TRS MIDI OUT (UART1 TX, PC7), fed by usb.c midi_out_event */
+#endif
 #include "usb.c"
 #ifndef FELUCCA_UART
 #if BOARD_SMK37

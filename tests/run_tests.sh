@@ -88,6 +88,21 @@ stock_hooked() {
     grep -q 'st_stock_touch(off);' firmware/src/felucca.c && echo hooked
 }
 run "SMK-37 every app erase goes through the stock marker's hook" stock_hooked
+$CC -Ifirmware/src -o "$OUT/smk_pedal_test" tests/smk_pedal_test.c
+run "Clipper Pro sustain pedal: polarity learnt at power-on, bounce, an open jack, never stuck" "$OUT/smk_pedal_test"
+$CC -o "$OUT/smk_midi_out_test" tests/smk_midi_out_test.c
+run "SMK-37 TRS MIDI OUT: the bytes, the ring, one byte at a time, no UART: no hang, no note left on" "$OUT/smk_midi_out_test"
+# Clipper Pro: the SMK-37 build compiles on the host with every warning (the board's own code included), and its
+# wheels, pedal, faders and pads go through the part controls and the CC map a MIDI keyboard uses
+smk_build() {
+    ${CC_SMK:-cc} -fsyntax-only -Wall -Werror -Wno-unused-function -DBOARD_SMK37=1 -Ibuild/gen -Ifirmware/src -Ifirmware/hal \
+        firmware/src/felucca.c 2>/dev/null || clang -fsyntax-only -m32 -ffreestanding -nostdinc \
+        -isystem "$(clang -print-resource-dir 2>/dev/null)/include" -Wall -Werror -Wno-unused-function -DBOARD_SMK37=1 \
+        -Ibuild/gen -Ifirmware/src -Ifirmware/hal firmware/src/felucca.c || return 1
+    grep -q 'part_ctl_cc(&trk\[0\], 64u' firmware/src/seq.c && grep -q 'midi_cc(t, cc, v)' firmware/src/ui_fbank.c &&
+    grep -q 'smk_perf_block();' firmware/src/seq.c && echo built
+}
+run "Clipper Pro: the SMK-37 build compiles (-Wall -Werror); wheels, pedal and faders as MIDI controls" smk_build
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
 UBSAN="${CC_UB:-cc} -DCLIPPER_SYNTH=0 -O1 -w -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
@@ -258,6 +273,7 @@ fi
 # (made here from the FM-1 binaries: only the layout and the protocol are under test)
 $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test.c
 run "SMK-37 Pro flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, key_mac" "$OUT/smk_flash_test"
+if [ -z "$HOST_ONLY" ]; then
 python3 tools/fm1pkg_make.py --board smk37 build/felucca.bin build/loader/ota.bin "$OUT/smk_new.fwsc" >/dev/null
 python3 tools/fm1pkg_make.py --board smk37 "$OUT/old_app.bin" build/loader/ota.bin "$OUT/smk_old.fwsc" >/dev/null
 run "SMK-37 Pro package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table"     python3 tests/smk_pkg_test.py "$OUT/smk_new.fwsc"
@@ -273,6 +289,9 @@ for m in "elite:SMK-37 Elite_900" "mke:MKE-P37_900"; do
 done
 $CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c
 run "update loader, SMK-37 Pro: app area 0x4000-0x9CFFF, protected ranges untouched"     "$OUT/ldr_test_smk" "$OUT/smk_old.fwsc" "$OUT/smk_new.fwsc"
+else
+    echo "== skip the SMK-37 package, update entry and loader tests (HOST_ONLY: no build/felucca.bin)"
+fi
 
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
 $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
