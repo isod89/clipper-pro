@@ -104,6 +104,62 @@ static void st_owner_check(void)
     st_erase(ST_OWNER_OFF);
     st_prog(ST_OWNER_OFF, want, 16);
 }
+
+/* The stock firmware's mapping in USRFLASH (fm1_flash_map.h FL_STOCKTAG): global settings at 0xC2000 (magic A3 3A),
+ * 8 presets at 0xC3000 + n * 0x5000 (a note per key from byte 5), the end marker "usrdata\0" at 0xEAFF8. While the
+ * marker is there the stock firmware loads the area as it is and never rebuilds it, so after a return to stock the
+ * user slots (USR1 0xC2000, USR2 0xD6000: Clipper's wavetables) would be its key, knob and fader mapping. So the
+ * marker's sector is erased (the stock firmware then rebuilds its factory mapping at its next start): before the
+ * first erase in USRFLASH (felucca.c fl_erase4k_quiet: st_stock_touch) and at boot when the marker sits over data
+ * that is not the stock mapping (st_stock_boot). After genkigenki's SLOOP SMK-37 layer */
+static int st_stock_tagged(void)
+{
+    static const uint8_t TAG[8] = {'u', 's', 'r', 'd', 'a', 't', 'a', 0};
+    uint8_t t[8];
+    uint32_t i;
+    if (st_read(FL_STOCKTAG_OFF, t, 8))
+        return 0;
+    for (i = 0; i < 8u; i++)
+        if (t[i] != TAG[i])
+            return 0;
+    return 1;
+}
+static int st_stock_intact(void)                /* the marker over the stock layout (none of our data there) */
+{
+    static const uint32_t PRESET[2] = {0xC3000u, 0xD7000u}, SLOT[2] = {0xC2000u, 0xD6000u};   /* presets 0, 4 */
+    uint8_t b[9];
+    uint32_t k, i;
+    if (!st_stock_tagged() || st_read(FL_SMP_LO, b, 2) || b[0] != 0xA3u || b[1] != 0x3Au)
+        return 0;
+    for (k = 0; k < 2u; k++) {
+        if (st_read(SLOT[k], b, 4) || (b[0] == 'F' && b[1] == 'S' && b[2] == 'M' && b[3] == 'P') ||
+            (b[0] == 'F' && b[1] == 'W' && b[2] == 'T' && b[3] == 'B'))
+            return 0;                           /* a slot's header (sample "FSMP", wavetable "FWTB") */
+        if (st_read(PRESET[k], b, 9))
+            return 0;
+        for (i = 5; i < 9u; i++)
+            if (b[i] & 0x80u)
+                return 0;                       /* not a preset's key notes (erased, or our data) */
+    }
+    return 1;
+}
+static int st_stock_release(void)               /* erase the marker's sector; 1 when it was there (later calls: 0) */
+{
+    if (!st_stock_tagged())
+        return 0;
+    st_erase(FL_STOCKTAG_LO);
+    return 1;
+}
+static void st_stock_touch(uint32_t off)        /* an erase at off: in USRFLASH, the marker first */
+{
+    if (off >= FL_SMP_LO && off < FL_SMP_HI)
+        st_stock_release();
+}
+static void st_stock_boot(void)                 /* the marker over data that is not the stock mapping: released */
+{
+    if (st_stock_tagged() && !st_stock_intact())
+        st_stock_release();
+}
 #else
 static void st_owner_check(void) {}
 static uint32_t st_sector(uint32_t obj, uint32_t copy)  /* flash offset of copy A (0) / B (1) */

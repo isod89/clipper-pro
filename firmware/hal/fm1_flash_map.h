@@ -29,7 +29,10 @@
  *   0xC0000-0xC0FFF  BTIF (BT pairing)              NEVER
  *   0xC1000-0xC1FFF  USRTRIM (key/pad/wheel calibration, "trimdat")   NEVER
  *   0xC2000-0xE9FFF  USRFLASH: user sample slots USR1, USR2 (2 x 80 KiB)           FL_SMP
- *   0xEA000-0xF3FFF  free (USRFLASH tail + unlisted), unused
+ *                    (the stock firmware's mapping until a wavetable is stored there)
+ *   0xEA000-0xEAFFF  USRFLASH tail: the stock end marker "usrdata" at 0xEAFF8; erased (only) before the
+ *                    first write into FL_SMP (FL_STOCKTAG)
+ *   0xEB000-0xF3FFF  free (unlisted), unused
  *   0xF4000-0xFDFFF  USR (stock resources; kept for a rollback)   NEVER
  *   0xFE000-0xFEFFF  free, unused
  *   0xFF000-0xFFFFF  key_mac                        NEVER
@@ -52,6 +55,15 @@
 #define FL_OTA_HI       0x000C0000u
 #define FL_SMP_LO       0x000C2000u                /* user sample slots (eng_sample.c) */
 #define FL_SMP_HI       0x000EA000u
+/* USRFLASH is the stock firmware's mapping (global settings 0xC2000, 8 presets from 0xC3000) with its end marker
+ * "usrdata\0" at 0xEAFF8: while the marker is there the stock firmware trusts the area and never rebuilds it. Its
+ * sector is erased before the first erase in FL_SMP (storage.c st_stock_touch), so a return to stock rebuilds the
+ * factory mapping. Exactly that one sector, erased whole, nothing else above FL_SMP_HI (after genkigenki, SLOOP's
+ * SMK-37 layer) */
+#define FL_STOCKTAG_LO  0x000EA000u
+#define FL_STOCKTAG_HI  0x000EB000u
+#define FL_STOCKTAG_OFF 0x000EAFF8u
+#define FL_STOCKTAG_OK(off, n) ((uint32_t)(off) == FL_STOCKTAG_LO && (uint32_t)(n) == FL_STOCKTAG_HI - FL_STOCKTAG_LO)
 /* a window [lo, hi) is allowed: sector aligned, non-empty, and clear of every protected range */
 #define FL_WIN_SAFE(lo, hi) ((lo) % 0x1000u == 0u && (hi) % 0x1000u == 0u && (lo) < (hi) && \
                              (lo) >= FL_HEAD_HI && (hi) <= FL_KEYMAC_LO && \
@@ -60,6 +72,8 @@
 _Static_assert(FL_WIN_SAFE(FL_DATA_LO, FL_DATA_HI), "SMK: FL_DATA overlaps a protected range");
 _Static_assert(FL_WIN_SAFE(FL_OTA_LO, FL_OTA_HI), "SMK: FL_OTA overlaps a protected range");
 _Static_assert(FL_WIN_SAFE(FL_SMP_LO, FL_SMP_HI), "SMK: FL_SMP overlaps a protected range");
+_Static_assert(FL_WIN_SAFE(FL_STOCKTAG_LO, FL_STOCKTAG_HI) && FL_STOCKTAG_LO == FL_SMP_HI &&
+               FL_STOCKTAG_OFF + 8u == FL_STOCKTAG_HI, "SMK: the stock marker sector");
 _Static_assert(FL_WIN_SAFE(FL_APP_LO, FL_APP_HI), "SMK: FL_APP overlaps a protected range");
 _Static_assert(FL_WIN_SAFE(FL_REC_LO, FL_REC_HI), "SMK: FL_REC overlaps a protected range");
 _Static_assert(FL_REC_HI == FL_CAL_LO && FL_OTA_HI <= FL_REC_HI && FL_OTA_LO >= FL_REC_LO,
@@ -70,7 +84,7 @@ _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows
 /* SLOOP's own store: FL_DATA and the sample slots */
 #define FL_STORE_OK(off, n) (FL_IN(off, n, FL_DATA_LO, FL_DATA_HI) || FL_IN(off, n, FL_SMP_LO, FL_SMP_HI))
 #ifndef FL_RANGE_OK
-#define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI))
+#define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI) || FL_STOCKTAG_OK(off, n))
 #endif
 /* second, independent net in the RAM driver: [off, off + n) touches a protected range (also when a
  * caller supplies its own FL_RANGE_OK, as the update loader does) */

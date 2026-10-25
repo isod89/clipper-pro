@@ -118,10 +118,20 @@ static void audio_silence(void)                 /* IRQs off: the DMA would loop 
 }
 /* a sector erase with the audio silenced inside the same interrupts-off window (silenced before it, the
  * audio interrupt could render a fresh half that the DMA then loops for the whole erase: a buzz) */
+#if BOARD_SMK37
+static void st_stock_touch(uint32_t off);        /* storage.c: the stock mapping's end marker, before USRFLASH */
+#endif
 static int fl_erase4k_quiet(uint32_t off, uint32_t *took)
 {
+#if BOARD_SMK37
+    uint32_t f;
+    int rc;
+    st_stock_touch(off);                         /* (an erase in USRFLASH: the stock marker goes first) */
+    f = irq_save();
+#else
     uint32_t f = irq_save();
     int rc;
+#endif
     audio_silence();
     rc = FL_FAR(fl_erase4k_ram)(off, took);
     irq_restore(f);
@@ -130,7 +140,11 @@ static int fl_erase4k_quiet(uint32_t off, uint32_t *took)
 static int st_erase(uint32_t off)
 {
     uint32_t took;
+#if BOARD_SMK37
+    if (!FL_STORE_OK(off, 0x1000u) && !FL_STOCKTAG_OK(off, 0x1000u))
+#else
     if (!FL_STORE_OK(off, 0x1000u))
+#endif
         return -8;
     return fl_erase4k_quiet(off, &took);
 }

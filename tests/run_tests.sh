@@ -80,6 +80,14 @@ $CC -O2 -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o "$OUT/ui_pages_test" tes
 run "live UI: pages, layers (punch, steps, erase, roll, key, mix), holds, drums, REC, fuzz" "$OUT/ui_pages_test" "$OUT"
 $CC -o "$OUT/smk_wheel_test" tests/smk_wheel_test.c
 run "SMK-37 Pro pitch wheel: the bend is back to 0 at rest, however slowly the wheel was moved" "$OUT/smk_wheel_test"
+$CC -w -DBOARD_SMK37=1 -Ifirmware/hal -Ifirmware/src -Ibuild/gen -o "$OUT/smk_stock_test" tests/smk_stock_test.c
+run "SMK-37 the way back to M-Vave: the stock mapping's marker released before the first USRFLASH erase, once" "$OUT/smk_stock_test"
+# every erase of the app goes through fl_erase4k_quiet (felucca.c), whose first step on the SMK-37 is st_stock_touch
+stock_hooked() {
+    ! grep -n 'fl_erase4k_ram' firmware/src/*.c | grep -v '^firmware/src/felucca.c' &&
+    grep -q 'st_stock_touch(off);' firmware/src/felucca.c && echo hooked
+}
+run "SMK-37 every app erase goes through the stock marker's hook" stock_hooked
 # no divide by 0 (the FM-1 runs with the div0 trap off, hal/fm1_irq.h: a real one would give a wrong value
 # silently): the UI fuzz, the sequencer, the projects and a minute of random live use, with UBSan
 UBSAN="${CC_UB:-cc} -DCLIPPER_SYNTH=0 -O1 -w -fsanitize=integer-divide-by-zero -fno-sanitize-recover=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal"
