@@ -68,7 +68,7 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/felucca.c`):
 Target board: `BOARD=smk37 ./build.sh` (or `./build.sh --board smk37`) builds for the M-Vave SMK-37 Pro:
 `-DBOARD_SMK37=1` for the app and the update loader, identity `SMK-37 Pro_900` (release `SMK-37 Pro_9XY`),
 the SMK flash layout (PRCT 0x9D000, the stock region table with USRTRIM / USRFLASH) and the package
-`build/sloop-smk37.fwsc`. The intermediate files (`build/felucca.bin`, `build/loader/ota.bin`, `build/felucca.dis`)
+`build/clipper-pro.fwsc`. The intermediate files (`build/felucca.bin`, `build/loader/ota.bin`, `build/felucca.dis`)
 are shared: build the FM-1 again before `tests/run_tests.sh`. The default stays the FM-1, byte for byte.
 
 ## Samples

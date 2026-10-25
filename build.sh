@@ -3,7 +3,7 @@
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 # Build Felucca on macOS (see BUILDING.md).
 #   ./build.sh [--release X.Y] [--board fm1|smk37]
-#   BOARD            target board: fm1 (default) or smk37 (M-Vave SMK-37 Pro -> build/sloop-smk37.fwsc)
+#   BOARD            target board: fm1 (default) or smk37 (M-Vave SMK-37 Pro -> build/clipper-pro.fwsc)
 #   MODEL            smk37: pro (default), elite or mke: the model name the keyboard reports
 #   JIELI_TOOLCHAIN  JieLi Linux toolchain (default: ~/.jieli/toolchain)
 #   AC79_SDK         JieLi AC79 SDK checkout (default: ~/fw-AC79_AIoT_SDK)

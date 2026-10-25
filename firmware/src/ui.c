@@ -2,6 +2,9 @@
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* Felucca user interface. Four columns map to KNOB 1..4. Rendering is lazy:
  * every element remembers what it last drew and is redrawn only on change. */
+#if !defined FELUCCA_VERSION && BOARD_SMK37
+#define FELUCCA_VERSION "CLIPPER PRO 1.1 EXP"   /* Clipper Pro: Clipper on the M-VAVE SMK-37 (the splash: a PRO badge) */
+#endif
 #ifndef FELUCCA_VERSION
 #define FELUCCA_VERSION "CLIPPER 1.1 EXP"  /* (experimental) the synthesizer firmware for the FM-1 (from SLOOP 2.5, based on Felucca) */
 #endif

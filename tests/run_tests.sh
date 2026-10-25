@@ -268,7 +268,7 @@ for m in 1 2; do                         # the MODEL=elite / mke builds of ota.c
     run "M-UPGRADE entry, SMK-37 model $m (1 Elite, 2 MKE-P37): identity and parm under its name" "$OUT/ota_test_smk_m$m" "$OUT/smk_new.fwsc"
 done
 for m in "elite:SMK-37 Elite_900" "mke:MKE-P37_900"; do
-    f="build/sloop-smk37-${m%%:*}.fwsc"
+    f="build/clipper-pro-${m%%:*}.fwsc"
     [ -f "$f" ] && run "SMK-37 ${m%%:*} build package: layout, identity ${m#*:}" python3 tests/smk_pkg_test.py "$f" "${m#*:}"
 done
 $CC -DBOARD_SMK37=1 -o "$OUT/ldr_test_smk" tests/ldr_test.c

@@ -59,7 +59,11 @@ static void recovery_main(void)
     flash_ok = FL_JEDEC_OK(FL_FAR(fl_jedec_ram)());
     lcd_init();
     lcd_fill(0, 0, 240, 240, C_BLACK);
+#if BOARD_SMK37
+    draw_text_box(0, 64, 240, &FONT_S, "CLIPPER PRO USB RESCUE", C_WHITE, 1);
+#else
     draw_text_box(0, 64, 240, &FONT_S, "CLIPPER USB RESCUE", C_WHITE, 1);
+#endif
     draw_text_box(0, 96, 240, &FONT_S, "CONNECT USB", C_WHITE, 1);
     draw_text_box(0, 124, 240, &FONT_S,
                   flash_ok ? "OPEN THE INSTALLER" : "UNKNOWN FLASH", C_WHITE, 1);

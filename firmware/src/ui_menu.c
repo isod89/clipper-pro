@@ -114,7 +114,12 @@ static void draw_menu(void)
             cv_text(4, 4, &FONT_L, "CLIPPER", C_WHITE);
             cv_rect(128, 22, 6, 6, TE_COL[3]), cv_rect(136, 16, 6, 12, TE_COL[2]);   /* the sails */
             cv_rect(144, 10, 6, 18, TE_COL[1]), cv_rect(152, 4, 6, 24, TE_COL[0]);
+#if BOARD_SMK37
+            cv_text(166, 4, &FONT_L, "PRO", TE_COL[3]);    /* Clipper Pro */
+            cv_text(4, 36, &FONT_S, "SMK-37 PORT: GENKIGENKI", C_AMB);
+#else
             cv_text(4, 36, &FONT_S, "SYNTH, FROM SLOOP + FELUCCA", C_AMB);
+#endif
             cv_text(4, 54, &FONT_S, FELUCCA_VERSION, C_HI);
             cv_text(236 - text_w(&FONT_S, __DATE__), 54, &FONT_S, __DATE__, C_GRAY);   /* build date */
             cv_text(cv_text(4, 72, &FONT_S, "LEO KUROSHITA", C_HI) + 8, 72, &FONT_S, "@KUROGEDELIC", C_AMB);

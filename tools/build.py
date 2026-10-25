@@ -10,10 +10,10 @@ felucca.fwsc (package). See BUILDING.md for the toolchain and the SDK.
 
 BOARD=smk37 (or --board smk37) builds for the M-Vave SMK-37 Pro: -DBOARD_SMK37=1 for the app and the
 loader, identity SMK-37 Pro_900 (release SMK-37 Pro_9XY), the SMK flash layout (fm1pkg_make.py), and
-the package build/sloop-smk37.fwsc (sloop-smk37-X.Y.fwsc for a release). The default stays the FM-1.
+the package build/clipper-pro.fwsc (Clipper Pro; clipper-pro-X.Y.fwsc for a release). The default stays the FM-1.
 MODEL=elite / mke (or --model) with smk37: the same build under the SMK-37 Elite's or the MKE-P37's model
 name (identity SMK-37 Elite_900 / MKE-P37_900, the loader's and the update record's name too; -DSMK_MODEL),
-so M-Vave's updater still takes that unit's factory package; build/sloop-smk37-elite.fwsc, -mke.fwsc.
+so M-Vave's updater still takes that unit's factory package; build/clipper-pro-elite.fwsc, -mke.fwsc.
 
 The JieLi toolchain is Linux x86-64 only. JIELI_TOOLCHAIN points at it; on
 macOS (or with JIELI_DOCKER=1) each tool runs in a linux/amd64 container.
@@ -355,7 +355,7 @@ def main():
         raise SystemExit(f"MODEL={model}: pro, elite or mke, with BOARD=smk37")
     fm1pkg_make.set_board(BOARD)
     APP_SLOT = fm1pkg_make.APP_SLOT
-    stem = "felucca" if BOARD == "fm1" else "sloop-" + BOARD
+    stem = "felucca" if BOARD == "fm1" else "clipper-pro"   # Clipper Pro: clipper-pro[-elite|-mke].fwsc
     PRODUCT = fm1pkg_make.BOARDS[BOARD][2]
     if model != "pro":              # another model name: identity, loader and update record (fm1_cc.h SMK_MODEL)
         BOARD_DEFS[BOARD] = [*BOARD_DEFS[BOARD], f'-DSMK_MODEL="{MODELS[model]}"']
