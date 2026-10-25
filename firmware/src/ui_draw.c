@@ -1172,6 +1172,22 @@ static void ui_draw(void)
         if (!ui.msg_t)
             ui_message("ERASED");
     }
+#if BOARD_SMK37
+    if (fb_shown() || pick_shown()) {                  /* Clipper Pro: the FADER BANK screen (ui_fbank.c), SOUNDS (ui_pick.c) */
+        if (fb_shown())
+            fb_draw();
+        else
+            pick_draw();
+        ui_timers();
+        ui.force = 0;
+        return;
+    }
+    if (fb_left() | (pick_frame && pick_frame + 1u == ui.frame)) {   /* back from them */
+        pick_frame = 0;
+        lcd_fill(0, 0, 240, 240, C_BLACK);
+        ui.force = 1;
+    }
+#endif
     if (!ui.menu && (ui.layer != LY_PLAY || ui.hold_kind)) {   /* a layer held / a hold to confirm */
         if (ui.hold_kind)
             hold_screen_draw();

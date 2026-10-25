@@ -5,7 +5,6 @@
 /* The LED picture is built off-line and copied one byte per column: clearing
  * and relighting would let the 10 kHz scan catch the dark gap and flicker. */
 #if BOARD_SMK37
-static uint8_t smk_fbank, smk_fbank_new;           /* FADER BANK: 0 level, 1 filter, 2 reverb, 3 delay (main.c smk_faders) */
 /* SMK-37 Pro: one flag per id. Ids 0..18 are the button LEDs (smk_input.h), the note keys (no LEDs of
  * their own) take LED_KEY0 + k; ui_leds shows white keys F3..G5 on the 16 RGB pads. */
 #define LED_BUF 64u
@@ -282,13 +281,17 @@ static void ui_leds(void)
     for (c = 0; c < SMK_NLED; c++)                 /* the buttons: on / off (no dim layers) */
         fm1_led[c] = nl[c];
     smk_pad_piano = ui.layer == LY_SCALE;          /* SCALE held: the pads are a little piano (smk_input.h) */
-    fm1_led[SMK_BTN_FADER_BANK] = smk_fbank != 0;  /* FADER BANK lit off bank A */
-    if (!is_drum(TSEL) && TSEL->p[P_AMODE])        /* ARP lit while the selected track's arpeggiator runs */
+    fm1_led[SMK_BTN_FADER_BANK] = fb_shown();      /* FADER BANK lit while its screen is up */
+    fm1_led[SMK_BTN_KNOB_BANK] = pick_pin || (int32_t)(fm1_ms - pick_k4_until) < 0;   /* KNOB BANK: SOUNDS pinned, K4 turning */
+    smk_pad_pick = (uint16_t)(pick_shown() ? 0xFFFFu : 0u);   /* (the SOUNDS pads: no notes) */
+    smk_pad_grid = (uint8_t)padgrid_on();          /* (steps and tiles: reading order) */
+    if (!is_drum(TSEL) && TSEL->p[P_AMODE])        /* ARP lit while the arpeggiator runs */
         fm1_led[panel.btn[B_ARP]] = 1;
     if ((int32_t)(fm1_ms - padled_hold_until) >= 0) {   /* the pads. Off is off: no glow layers */
-        static const uint8_t PAL[NTRK][3] = {{40, 124, 255}, {30, 204, 112}, {255, 198, 24}, {255, 98, 26}};   /* the screen's track colours (TE_COL) */
-        const uint8_t *col = PAL[song.sel % NTRK];
-        if (ui.layer == LY_SCALE) {                /* white and black keys lit white, the scale green, its root brighter */
+        const uint8_t *col = pick_rgb_cur();       /* (Clipper Pro: the colour of the sound's kind) */
+        if (pick_shown()) {
+            pick_leds();                           /* SOUNDS: the sounds of a kind, the current one white */
+        } else if (ui.layer == LY_SCALE) {         /* white and black keys lit white, the scale green, its root brighter */
             uint32_t sk = scale_keys(0), rk = scale_keys(1);
             for (c = 0; c < 16u; c++) {
                 int32_t n = SMK_PIANO_NOTE[c];
@@ -303,35 +306,29 @@ static void ui_leds(void)
                 else
                     padled_set(c, 6, 6, 6);
             }
-        } else if (ui.layer == LY_SONG) {          /* SAVE held: slots A..D used green, free white; store armed red */
-            uint32_t ready = arrangement_ready();
+        } else if (ui.layer == LY_PLAY && !smk_pad_grid) {
+            /* NOTES: the pads are the white keys F3..G5 (bottom row F3..C4, top row D4..G5) and play the sound, as the
+             * keys (SEL: QNT WHITE walks the scale from C4). In the colour of the sound's kind: bright while the note
+             * sounds or is held, the root's pads half, the others dim, a silent pad dark */
+            track_t *t = TSEL;
+            uint32_t nt = fm1_in.notes | keys_sounding(t), kk, pp, sh;
             for (c = 0; c < 16u; c++) {
-                uint32_t p = SMK_PAD_OF_WHITE(c), i = c & 3u, used = (ready >> i) & 1u;
-                if (c < 8u) {
-                    int playing = c < 4u && live_sec == (int8_t)i && !arrangement_clock.running;
-                    if (c >= 4u && sec_armed == i + 1u)
-                        padled_set(p, 90, 0, 0);
-                    else if (used)
-                        padled_set(p, 0, playing ? 110 : 40, 0);
-                    else
-                        padled_set(p, 18, 18, 18);
-                } else if (c == 12u) {
-                    padled_set(p, 0, arrangement_enabled ? 70 : 15, arrangement_enabled ? 70 : 15);   /* loop / song */
-                } else if (c == 13u) {
-                    padled_set(p, srec ? 90 : 15, 0, 0);                                            /* SONG REC */
-                } else if (c == 15u) {
-                    padled_set(p, 18, 18, 18);                                                      /* song screen */
-                } else {
-                    padled_set(p, 0, 0, 0);
-                }
-            }
-        } else {                                   /* the track's colour: lit bright; playing, its steps normal */
-            for (c = 0; c < 16u; c++) {
-                uint32_t id = LED_KEY(key_of_white(c)), sh = nl[id] ? 1u : (ui.layer == LY_PLAY && dl[id]) ? 3u : 0u;
-                if (sh)
-                    padled_set(SMK_PAD_OF_WHITE(c), (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
+                kk = key_of_white(c);
+                if ((nt >> kk) & 1u)
+                    sh = 0u;
+                else if ((pp = kb_pitch(t, kk, song.octave)) == KB_SILENT)
+                    sh = 8u;
                 else
-                    padled_set(SMK_PAD_OF_WHITE(c), 0, 0, 0);
+                    sh = (pp + 120u - (uint32_t)t->p[P_ROOT]) % 12u == 0u ? 2u : 4u;
+                padled_set(SMK_PAD_OF_WHITE(c), (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
+            }
+        } else {                                   /* the layers' tiles and steps: lit bright, the guides dimmer */
+            for (c = 0; c < 16u; c++) {
+                uint32_t id = LED_KEY(key_of_white(c)), sh = nl[id] ? 1u : dl[id] ? 3u : 0u;
+                if (sh)
+                    padled_set(SMK_PAD_OF_KEY(c), (uint8_t)(col[0] >> sh), (uint8_t)(col[1] >> sh), (uint8_t)(col[2] >> sh));
+                else
+                    padled_set(SMK_PAD_OF_KEY(c), 0, 0, 0);
             }
         }
     }
@@ -1109,10 +1106,15 @@ static void ui_input(void)
 {
     uint32_t pressed = fm1_input_edges(0), notes = fm1_input_note_edges(), now = fm1_ticks(), id, b, k;
 #if BOARD_SMK37
-    if (pressed & (1u << SMK_BTN_LEFT | 1u << SMK_BTN_RIGHT)) {   /* < >: SEQ held: the step pages; the visualiser:
-                                                                * its style; else the pages, as SELECT (never the tempo) */
+    if (pressed & (1u << SMK_BTN_LEFT | 1u << SMK_BTN_RIGHT)) {   /* < >: the SOUNDS pages; the FADER BANK screen: the
+                                                                * banks; SEQ held: the step pages; the visualiser: its
+                                                                * style; else the pages, as SELECT (never the tempo) */
         int32_t d = (pressed >> SMK_BTN_RIGHT) & 1u ? 1 : -1;
-        if (ui.layer == LY_STEP) {
+        if (pick_shown())
+            pick_turn(d);
+        else if (fb_shown())
+            fb_set(smk_fbank + (d > 0 ? 1u : FB_N - 1u));
+        else if (ui.layer == LY_STEP) {
             uint32_t pages = (trk_len(TSEL) + 15u) / 16u;
             ui.step_page = (uint8_t)((ui.step_page + pages + (uint32_t)d) % (pages ? pages : 1u));
         } else if (vis_shown()) {
@@ -1122,16 +1124,40 @@ static void ui_input(void)
         }
         ui.force = 1;
     }
-    if (pressed & 1u << SMK_BTN_FADER_BANK) {                   /* FADER BANK: what the four faders set */
-        static const char *const FB[4] = {"A  LEVEL", "B  FILTER", "C  REVERB", "D  DELAY"};
-        smk_fbank = (uint8_t)((smk_fbank + 1u) % 4u);
-        smk_fbank_new = 1;
-        ui_say("FADER BANK ", FB[smk_fbank]);
+    if (pressed & 1u << SMK_BTN_FADER_BANK) {                   /* FADER BANK: its screen; pressed again the next bank */
+        pick_close();                                           /* (one screen at a time) */
+        fb_set(smk_fbank + (fb_shown() ? 1u : 0u));
+    }
+    fb_expire();                                                /* (it closes by itself) */
+    if (fb_shown()) {                                           /* SELECT (K2) turns the bank there */
+        int32_t t = panel_enc(EN_SELECT);
+        if (t)
+            fb_set(smk_fbank + (t > 0 ? 1u : FB_N - 1u));
+    }
+    if (pressed & 1u << SMK_BTN_KNOB_BANK) {                    /* KNOB BANK: the SOUNDS on the pads, pinned / closed */
+        fb_close();
+        pick_pin_toggle();
+        ui.force = 1;
+    }
+    {
+        uint32_t h = smk_pick_take(), p;                        /* the pads hit while SOUNDS was up: their sounds */
+        for (p = 0; h && p < SMK_NPAD; p++)
+            if ((h >> p) & 1u && pick_shown())
+                pick_select(p);                                 /* reading order, as the screen */
     }
 #endif
     uint32_t home = btn_hold(&ui.home_t0, B_HOME, now, 1);
     int32_t s;
     int layered;
+#if BOARD_SMK37
+    if (home == BT_TAP && (fb_shown() || pick_shown())) {   /* PATCH tapped: closes the FADER BANK screen / SOUNDS */
+        if (fb_shown())
+            fb_close();
+        else
+            pick_close();
+        home = BT_NONE;
+    }
+#endif
     if (CLIPPER_SYNTH && song.sel)                      /* Clipper: one instrument (an editor, an old project) */
         song.sel = 0;
 #if CLIPPER_SYNTH
@@ -1290,6 +1316,10 @@ static void ui_input(void)
             br_step(s);                                 /* (1.0: the PRESETS page: its engine filter) */
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
+#if BOARD_SMK37
+        if (ui.home)
+            pick_open_tmp();                            /* Clipper Pro: the SOUNDS on the pads, a moment, at this sound's page */
+#endif
     }
 #if CLIPPER_SYNTH
     if ((s = panel_enc(EN_ALGO)) != 0 && (ui.home || cur_page()->graph == GR_BROWSE))

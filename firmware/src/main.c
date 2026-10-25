@@ -127,9 +127,9 @@ static void hexs(char *b, uint32_t v)
 }
 
 #if BOARD_SMK37
-/* the SMK-37 Pro's 4 faders, tracks 1..4 (4 = drums), by FADER BANK (ui_input.c smk_fbank): A level, B the
- * track's filter (P_TFLT: low-pass left, open in the middle, high-pass right), C reverb send, D delay send.
- * A fader takes over only once it moves (also after a bank change), so nothing jumps. */
+/* Clipper Pro: the SMK-37's 4 faders play the sound, by FADER BANK (ui_fbank.c: A MACROS, B ENV, C TONE, D MIX).
+ * A fader takes over only once it moves (also after a bank change), so nothing jumps. The wheels and the pedal are
+ * seq.c's (smk_perf_block: the pitch bend, the mod wheel, the sustain, as from a MIDI keyboard) */
 static void smk_faders(void)
 {
     static uint8_t last[4] = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -139,9 +139,8 @@ static void smk_faders(void)
         for (i = 0; i < 4u; i++)
             last[i] = 0xFF;
     }
-    for (i = 0; i < 4u && i < NTRK; i++) {
+    for (i = 0; i < 4u; i++) {
         uint32_t v = fm1_in.fader[i];
-        int16_t *pv;
         if (last[i] == 0xFF || fm1_in.frames < 200u) {   /* (the first readings settle) */
             last[i] = (uint8_t)v;
             continue;
@@ -149,53 +148,8 @@ static void smk_faders(void)
         if (v == last[i])
             continue;
         last[i] = (uint8_t)v;
-        switch (smk_fbank) {
-        case 1:
-            trk[i].p[P_TFLT] = (int16_t)((int32_t)v - 64);
-            break;
-        case 2:
-            pv = i == TRK_DRUM ? &song.g[G_DRREV] : &trk[i].p[P_REV];
-            *pv = (int16_t)v;
-            break;
-        case 3:
-            pv = i == TRK_DRUM ? &song.g[G_DRDLY] : &trk[i].p[P_DLY];
-            *pv = (int16_t)v;
-            break;
-        default:
-            pv = i == TRK_DRUM ? &song.g[G_DRLVL] : &trk[i].p[P_LEVEL];
-            *pv = (int16_t)v;
-            break;
-        }
-        ui.force = 1;
+        fb_apply(smk_fbank, i, v > 127u ? 127u : v);
     }
-}
-
-/* the wheels (stock: mux C address 4 = pitch, 5 = mod), self-calibrating (the travel is short: raw ~445..640
- * pitch, ~474..629 mod on a unit). Pitch: smk_wheel.h (+-SMK_BEND_ST semitones, a dead band around the rest,
- * which follows a slow drift in time); mod: 0..127, up (lower raw) = more (voice.c perf_*) */
-#include "smk_wheel.h"
-#if SMK_PW_ST != SMK_BEND_ST
-#error "smk_wheel.h SMK_PW_ST and voice.c SMK_BEND_ST differ"
-#endif
-static void smk_wheels(void)
-{
-    enum { DEAD = 12, MOD_LO = 485, MOD_HI = 615 };
-    static smk_pw_t pw;
-    static int32_t mlo, mhi;
-    int32_t m = fm1_in.wheel[1], mw;
-    if (fm1_in.frames < 300u)                     /* (the readings settle) */
-        return;
-    if (!mhi) {
-        mlo = m < MOD_LO ? m : MOD_LO;
-        mhi = m > MOD_HI ? m : MOD_HI;
-    }
-    if (m < mlo)
-        mlo = m;
-    if (m > mhi)
-        mhi = m;
-    mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
-    perf_bend = smk_pw_bend(&pw, fm1_in.wheel[0], fm1_ms);
-    perf_modw = clamp(mw, 0, 127);
 }
 #endif
 
@@ -424,7 +378,6 @@ static void fm1_main(void)
         ui_leds();
 #if BOARD_SMK37
         smk_faders();
-        smk_wheels();
         padled_flush();                                 /* the pads' colours, between LCD transfers */
 #endif
         ui_draw();
@@ -436,9 +389,6 @@ static void fm1_main(void)
         felucca_dbg.stage = 9;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
-#if BOARD_SMK37
-            smk_wheels();                       /* (bends follow the wheel, not the screen) */
-#endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
 #endif

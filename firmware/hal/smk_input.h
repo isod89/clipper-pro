@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
- * SMK-37 Pro port: Copyright (C) 2026 M. Geisler (makkuro) */
+ * SMK-37 Pro port: Copyright (C) 2026 M. Geisler (genkigenki/makkuro) */
 /* SMK-37 Pro input HAL: velocity keybed, buttons, encoders, button LEDs, pads, faders, wheels.
  * The FM-1 counterpart is fm1_input.h + fm1_adc.h; this header keeps their API (fm1_in, fm1_input_init,
  * fm1_input_tick, fm1_input_scan, fm1_enc_take, fm1_input_edges, fm1_input_note_edges, fm1_led_key) so
@@ -82,25 +82,42 @@ static const uint8_t SMK_BTNC[FM1_NBTN] = {0x26, 0x76, 0x96, 0x56, 0x66, 0x36, 0
 /* encoder i: A and B matrix codes (stock table; K1..K8 order to confirm) */
 static const uint8_t SMK_ENCC[FM1_NENC][2] = {{0x97, 0xa7}, {0x37, 0x47}, {0x17, 0x27}, {0xb7, 0xc7},
                                                {0x57, 0x67}, {0x77, 0x87}, {0xd7, 0xe7}, {0xf7, 0x07}};
-/* LED i (= button i; 18 = spare): group << 4 | bit in the 595 low half (stock table) */
+/* LED i (= button i): group << 4 | bit in the 595 low half (stock table, its order differs at the end).
+ * SEQ PLAY has a two-colour LED: 16 = its green, 18 = its red (unused); SEQ REC's own red LED is 0x1b
+ * (confirmed on a unit, 2026-10-10: 0x1e lit PLAY red, 0x1b lit SEQ REC) */
 static const uint8_t SMK_LEDC[SMK_NLED] = {0x0c, 0x12, 0x00, 0x10, 0x0d, 0x1d, 0x02, 0x01, 0x09, 0x08,
-                                           0x0b, 0x0a, 0x11, 0x19, 0x18, 0x1a, 0x1c, 0x1e, 0x1b};
+                                           0x0b, 0x0a, 0x11, 0x19, 0x18, 0x1a, 0x1c, 0x1b, 0x1e};
 /* analog: mux address -> pad on mux A (ch1); mux B (ch8) = the same + 8 (stock table) */
 static const uint8_t SMK_PADMUX[8] = {1, 2, 3, 0, 4, 7, 5, 6};
 /* mux C (ch2): address 0..3 -> fader 1,2,3,0; 4, 5 wheels; 6 pedal; 7 battery */
 static const uint8_t SMK_FADMUX[4] = {1, 2, 3, 0};
 enum { SMK_ADC_PADA = 1, SMK_ADC_PADB = 8, SMK_ADC_MUXC = 2 };
 /* the pads are the 16 white keys of the FM-1's 27 (F3 G3 A3 B3 C4 D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5): the step
- * grid, the drum sounds and every layer's tiles land on them, in reading order: the top row (hardware pads 8..15,
- * mux B; confirmed on a unit) white keys 0..7, the bottom row (pads 0..7, mux A) 8..15 */
+ * grid, the drum sounds and every layer's tiles land on them, low notes at the bottom: the bottom row
+ * (hardware pads 8..15, mux B; padtest on a unit, 2026-10-10) white keys 0..7, the top row (pads 0..7, mux A) 8..15 */
 static const uint8_t SMK_WHITE_NOTE[SMK_NPAD] = {0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26};
 #define SMK_PAD_OF_WHITE(w) ((w) < 8u ? (w) + 8u : (w) - 8u)   /* white key 0..15 -> hardware pad */
-/* the piano layout (the UI sets smk_pad_piano, e.g. for SCALE): bottom row C4 D4 E4 F4 G4 A4 B4 C5, top row the
+/* the piano layout (the UI sets smk_pad_piano, e.g. for SCALE): top row C4 D4 E4 F4 G4 A4 B4 C5, bottom row the
  * black keys between them (C#4 D#4 - F#4 G#4 A#4 - C#5); note-key index (0 = F3) by hardware pad, -1 = none */
 static const int8_t SMK_PIANO_NOTE[SMK_NPAD] = {7, 9, 11, 12, 14, 16, 18, 19, 8, 10, -1, 13, 15, 17, -1, 20};
 static volatile uint8_t smk_pad_piano;
 static uint8_t smk_pad_note[SMK_NPAD];   /* the note key a pad pressed (+1; 0 = none): its release ends that one */
-#define SMK_WHITE_OF_PAD(p) ((p) < 8u ? (p) + 8u : (p) - 8u)   /* (the same swap both ways) */
+static volatile uint16_t smk_pad_pick;   /* pads that go to the UI (picker, TRACKS track pads): a hit sets its bit here, no note */
+static volatile uint16_t smk_pick_hits;  /* bit per hardware pad */
+static volatile uint8_t smk_pad_grid;    /* the pads are a 1..16 grid (steps, tiles): white key w = pad w */
+/* the pads' two states on the PLAY layer (the UI sets them; KNOB BANK + FADER BANK toggles): DRUM KIT (the default) a
+ * pad plays its drum sound whatever track is selected (white key w = lane w, as on the drum track), STEPS a pad is a
+ * step of the selected track's page (reading order). Both go through the outer-key queue, not the note keys:
+ * SMK_EXT_PAD + lane, SMK_EXT_STEP + step. Elsewhere (layers, the DRUMS grid page) the pads are as before */
+static volatile uint8_t smk_pad_drums, smk_pad_steps;
+#define SMK_EXT_PAD 0x40u
+#define SMK_EXT_STEP 0x50u
+/* DAW mode (the UI sets smk_pad_daw): every pad, whatever the layer, goes to the outer-key queue as SMK_EXT_DAW + the
+ * hardware pad (seq.c daw_pad); its release too, whatever the mode is by then */
+static volatile uint8_t smk_pad_daw;
+#define SMK_EXT_DAW 0x60u
+#define SMK_WHITE_OF_PAD(p) ((p) < 8u ? (p) + 8u : (p) - 8u)
+#define SMK_PAD_OF_KEY(w) (smk_pad_grid ? (w) : SMK_PAD_OF_WHITE(w))   /* white key -> pad, as the pads are now */
 
 #define SMK_TRIM_FLASH 0xC1000u   /* USRTRIM: the factory calibration record ("trimdat"), never written here */
 /* 5-point velocity curves (trimdata, flash 0xC1000: +0x08 16 pads x 5 u16, +0xA8 37 keys x 5 u16) */
@@ -134,6 +151,9 @@ static volatile struct {
     uint32_t adc_ok, adc_miss;   /* (debug: conversions read / not finished within a tick) */
     uint32_t frames;
 } fm1_in;
+/* SLOOP 2.7: buttons held over MIDI (GLO > MIDI 3 > REMOTE: src/ui_input.c remote_poll), bit i = button i: read as
+ * closed by the debounce (smk__buttons), as fm1_input.h does */
+static volatile uint32_t fm1_remote_btn;
 
 /* key events beyond the FM-1's 27 (keybed keys 0..4 and 32..36): key << 8 | velocity (0 = release) */
 #define SMK_EXTQ 32u
@@ -360,6 +380,8 @@ static void smk__buttons(void)
     for (i = 0; i < FM1_NBTN; i++) {
         uint32_t closed = smk__closed(SMK_BTNC[i]), bit = 1u << i, on = (fm1_in.buttons & bit) != 0u;
         volatile uint8_t *c = &fm1_in.cnt[i];
+        if (fm1_remote_btn & bit)
+            closed = 1;                                /* (2.7) held over MIDI */
         if (closed == on) {
             *c = 0;
             continue;
@@ -434,15 +456,35 @@ static void fm1__frame(void)
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
-    int32_t n0 = smk_pad_piano ? SMK_PIANO_NOTE[pad] : (int32_t)SMK_WHITE_NOTE[SMK_WHITE_OF_PAD(pad)];
+    int32_t n0 = smk_pad_piano ? SMK_PIANO_NOTE[pad] : (int32_t)SMK_WHITE_NOTE[smk_pad_grid ? pad : SMK_WHITE_OF_PAD(pad)];
     uint32_t n, bit;
     if (vel) {
+        if (smk_pad_daw) {                            /* DAW mode: the pad itself */
+            smk_pad_note[pad] = (uint8_t)(SMK_EXT_DAW + pad);
+            smk__extq(SMK_EXT_DAW + pad, vel);
+            return;
+        }
+        if ((smk_pad_pick >> pad) & 1u) {
+            smk_pick_hits |= (uint16_t)(1u << pad);
+            return;
+        }
+        if ((smk_pad_drums || smk_pad_steps) && !smk_pad_piano && !smk_pad_grid) {   /* DRUM KIT / STEPS: no note key */
+            n = smk_pad_steps ? SMK_EXT_STEP + pad : SMK_EXT_PAD + SMK_WHITE_OF_PAD(pad);
+            smk_pad_note[pad] = (uint8_t)n;
+            smk__extq(n, vel);
+            return;
+        }
         if (n0 < 0)
             return;                                   /* (a gap of the piano layout) */
         smk_pad_note[pad] = (uint8_t)(n0 + 1);
     } else {
         if (!smk_pad_note[pad])
             return;
+        if (smk_pad_note[pad] & SMK_EXT_PAD) {         /* (DRUM KIT / STEPS / DAW: its release goes there too, whatever now) */
+            smk__extq(smk_pad_note[pad], 0);
+            smk_pad_note[pad] = 0;
+            return;
+        }
         n0 = smk_pad_note[pad] - 1;                    /* the key it pressed, whatever the layout is now */
         smk_pad_note[pad] = 0;
     }
@@ -629,6 +671,14 @@ static uint32_t fm1_input_note_edges(void)
     return p;
 }
 
+static uint32_t smk_pick_take(void)             /* the pads hit for the picker since the last call */
+{
+    uint32_t k = fm1__lock(), h = smk_pick_hits;
+    smk_pick_hits = 0;
+    fm1__unlock(k);
+    return h;
+}
+
 /* the next outer-key event (keybed key << 8 | velocity, 0 = release), -1 if none */
 static int32_t smk_extkey_take(void)
 {
@@ -647,11 +697,14 @@ static void fm1_led_key(uint32_t id, int on)
         fm1_led[id] = (uint8_t)(on != 0);
 }
 
-/* fm1_adc.h stand-ins for main.c: the battery comes from mux C; the FM-1's MASTER pot is knob K8 here, as a
+/* fm1_adc.h stand-ins for main.c: the battery comes from mux C; the FM-1's MASTER pot is a knob here, as a
  * virtual pot (0..1023, 24 a detent; starts at 724: SLOOP's master_q12 2048, as before) */
 enum { FM1_ADC_BATT = 3, FM1_ADC_MASTER = 4 };
 #define SMK_ENC_MASTER 0u          /* K1, where the FM-1 has its MASTER pot (top left) */
 static int32_t smk_master = 724;
+static uint8_t smk_master_enc = SMK_ENC_MASTER;   /* the knob that turns it (panel.c knob_layout_apply: K1, or K5) */
+static int8_t smk_master_dir = 1;
+static uint8_t smk_master_hold;    /* DAW mode: the knob sends MIDI, the volume stays (ui_daw.c reads every knob) */
 static void fm1_adc_init(void) {}
 static int32_t fm1_enc_take(uint32_t e);
 static int32_t fm1_adc_read(uint32_t ch)
@@ -659,7 +712,9 @@ static int32_t fm1_adc_read(uint32_t ch)
     if (ch == FM1_ADC_BATT)
         return fm1_in.batt ? (int32_t)fm1_in.batt : -1;
     if (ch == FM1_ADC_MASTER) {
-        smk_master += fm1_enc_take(SMK_ENC_MASTER) * 24;
+        if (smk_master_hold)
+            return smk_master;
+        smk_master += fm1_enc_take(smk_master_enc % FM1_NENC) * smk_master_dir * 24;
         smk_master = smk_master < 0 ? 0 : smk_master > 1023 ? 1023 : smk_master;
         return smk_master;
     }

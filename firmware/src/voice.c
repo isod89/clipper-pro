@@ -12,16 +12,6 @@
  * declicks it); one of the part's own is restarted in place. Extra UNISON
  * voices only start when there is room. The drum track has its own voices (drums.c). */
 static uint32_t vage;                                   /* voice ages: one clock for every part */
-#if BOARD_SMK37
-/* the SMK-37 Pro's wheels (main.c smk_wheels), on the selected synth track: the pitch wheel bends
- * (1/4096 semitone, +-SMK_BEND_ST semitones), the mod wheel adds a vibrato of its own (a triangle at
- * SMK_VIB_HZ from the 24 MHz time base, not the preset's LFO; 0..127 = up to +-1 semitone) */
-#define SMK_BEND_ST 7
-#define SMK_VIB_HZ 10u
-#define SMK_VIB_K (SMK_VIB_HZ * 179u)          /* phase per TIMER4 tick: 2^32 / 24e6 = 178.96 */
-static volatile int32_t perf_bend;
-static volatile int32_t perf_modw;
-#endif
 /* engines that play recorded material (a position, not a phase): no phases kept or spread */
 #if FELUCCA_SLICE
 static int eng_sampled(const engine_t *e) { return e == &ENG_SAMPLE || e == &ENG_SLICE; }

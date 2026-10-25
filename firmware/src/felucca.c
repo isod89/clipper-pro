@@ -81,6 +81,11 @@
 #include "ui_song.c"
 #include "ui_studio.c"
 #include "icons.c"           /* parameter icons (FELUCCA_ICONS), used by ui_draw.c */
+#if BOARD_SMK37
+#include "ui_pick.c"          /* Clipper Pro: the SOUNDS on the pads (SMK-37) */
+#include "ui_fbank.c"         /* Clipper Pro: the FADER BANK screen and what the faders set */
+#include "ui_padgrid.c"       /* SMK-37: steps and tiles in reading order */
+#endif
 #include "ui_draw.c"
 #include "ui_vis.c"           /* the full-screen visualiser (HOME on HOME, 2.4) */
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */

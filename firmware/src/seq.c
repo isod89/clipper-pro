@@ -2175,7 +2175,7 @@ static void audition_block(void)
 }
 
 #if BOARD_SMK37
-/* the SMK's 10 keys beyond the FM-1's 27 (C3..E3 below, G#5..C6 above), in PLAY. A synth track: plain notes,
+/* the SMK's 10 keys beyond the FM-1's 27 (C3..E3 below, G#5..C6 above), in PLAY. Clipper: the sound's notes; a synth track: plain notes,
  * chromatic from the FM-1 key map (53 = F3), with OCT and TRANS. The drum track: more drums, as the 27 keys do
  * (a white key a sound, a black key the white key's left of it): C3 KICK, D3 SNARE, E3 HAT below; A5 OPEN HAT,
  * B5 CRASH, C6 RIDE above (G#5: COWBELL, G5's). Only the 16 lanes: projects stay SLOOP / FM-1 compatible. */
@@ -2221,10 +2221,83 @@ static void ext_keys_block(void)
             ext_note[k] = (uint8_t)(n + 1u);
             ext_trk[k] = (uint8_t)sel;
             mc = trk_midi_ch(sel);
-            input_on(t, n, v);
+            if (!midi_local_off)                          /* (Clipper: LOCAL OFF, the keys only go out) */
+                input_on(t, n, v);
             midi_out_event(0x09u | (0x90u | mc) << 8 | n << 16 | v << 24);
         }
     }
+}
+#endif
+
+#if BOARD_SMK37
+/* Clipper Pro: the SMK-37's wheels and PEDAL jack play the sound as a MIDI keyboard's do, through the same part
+ * controls (part_ctl, track 1's): the pitch wheel is the pitch bend (its range: GLO > MIDI > BEND, AUTO the sound's own),
+ * the mod wheel CC 1 (the MOD page's MW destination, the matrix's MW source), the pedal CC 64 (sustain). They go out
+ * over MIDI on the channel out too, as the keys do; with GLO > MIDI > LOCAL OFF they only go out. The wheels calibrate
+ * themselves (smk_wheel.h); the pedal learns its polarity at power-on (smk_pedal.h). */
+#include "smk_wheel.h"
+#include "smk_pedal.h"
+static int part_ctl_cc(track_t *t, uint32_t cc, uint32_t value);
+static void smk_perf_block(void)
+{
+    enum { DEAD = 12, MOD_LO = 485, MOD_HI = 615 };
+    static smk_pw_t pw;
+    static smk_ped_t ped;
+    static int32_t mlo, mhi, bend_sent, mw_sent = -1;
+    int32_t m = fm1_in.wheel[1], mw, b, e;
+    uint32_t mc = trk_midi_ch(0);
+    part_ctl_t *c = &part_ctl[0];
+    if (fm1_in.frames < 300u)                     /* (the readings settle) */
+        return;
+    b = smk_pw_bend(&pw, fm1_in.wheel[0], fm1_ms) * 8191 / (SMK_PW_ST * 4096);   /* -8191..8191 */
+    if (!midi_local_off)
+        c->bend = (int16_t)(b * 4);               /* (as seq.c part_ctl_event: the 14-bit value - 8192, x 4) */
+    if (b != bend_sent && (b == 0 || b - bend_sent > 32 || bend_sent - b > 32 || b == 8191 || b == -8191)) {
+        uint32_t v = (uint32_t)(b + 8192);
+        bend_sent = b;
+        midi_out_event(0x0Eu | (0xE0u | mc) << 8 | (v & 127u) << 16 | (v >> 7) << 24);
+    }
+    if (!mhi) {
+        mlo = m < MOD_LO ? m : MOD_LO;
+        mhi = m > MOD_HI ? m : MOD_HI;
+    }
+    if (m < mlo)
+        mlo = m;
+    if (m > mhi)
+        mhi = m;
+    mw = mhi - m <= DEAD ? 0 : (mhi - m - DEAD) * 127 / (mhi - mlo - DEAD > 1 ? mhi - mlo - DEAD : 1);
+    mw = clamp(mw, 0, 127);
+    if (mw != mw_sent && (mw == 0 || mw == 127 || mw - mw_sent > 1 || mw_sent - mw > 1)) {
+        mw_sent = mw;
+        if (!midi_local_off)
+            c->mw = (uint8_t)mw;
+        midi_out_event(0x0Bu | (0xB0u | mc) << 8 | 1u << 16 | (uint32_t)mw << 24);
+    }
+    if ((e = smk_ped_sample(&ped, fm1_in.pedal, fm1_ms)) >= 0) {
+        if (!midi_local_off)
+            part_ctl_cc(&trk[0], 64u, e ? 127u : 0u);
+        midi_out_event(0x0Bu | (0xB0u | mc) << 8 | 64u << 16 | (e ? 127u : 0u) << 24);
+    }
+}
+/* Clipper Pro: the SOUNDS pads' preview (ui_pick.c pick_select): a short note of the sound just loaded */
+static volatile uint8_t pick_aud_req;             /* note + 1, 0 = none */
+static uint8_t pick_aud_note;                     /* sounding: note + 1 */
+static uint32_t pick_aud_t;
+static void pick_aud_block(void)
+{
+    uint32_t r = pick_aud_req;
+    if (pick_aud_note && (r || fm1_ms - pick_aud_t >= 350u)) {
+        trk_note_off(&trk[0], pick_aud_note - 1u);
+        pick_aud_note = 0;
+    }
+    if (!r)
+        return;
+    pick_aud_req = 0;
+    if (midi_local_off)
+        return;
+    trk_note_on(&trk[0], r - 1u, 96);
+    pick_aud_note = (uint8_t)r;
+    pick_aud_t = fm1_ms;
 }
 #endif
 
@@ -2234,6 +2307,8 @@ static void keyboard_block(void)
     audition_block();
 #if BOARD_SMK37
     ext_keys_block();
+    smk_perf_block();                                 /* (Clipper Pro: the wheels and the pedal) */
+    pick_aud_block();                                 /* (Clipper Pro: the SOUNDS pads' preview) */
 #endif
     if (!(layer_buttons() & ly_bit[LY_ROLL]))         /* ARP up (and not locked): the rolls end (the keys stay silent) */
         for (r = 0; r < NROLL; r++)
