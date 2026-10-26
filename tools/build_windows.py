@@ -21,6 +21,9 @@ def main():
     ap.add_argument('--slice', choices=['0', '1'], help='FELUCCA_SLICE for the compile (the SLICE engine); '
                     'the BREAK sample follows FELUCCA_SLICE in this process environment (tools/gen_samples.py)')
     ap.add_argument('--nvoice', choices=['8', '12', '16'], help='NVOICE for the compile (Clipper: the voices; default 8)')
+    ap.add_argument('--board', choices=['fm1', 'smk37'], help='BOARD for the build (smk37: Clipper Pro, the M-Vave SMK-37)')
+    ap.add_argument('--model', choices=['pro', 'elite', 'mke'], help='MODEL with --board smk37: the model name the keyboard reports')
+    ap.add_argument('--cdc', action='store_true', help='FELUCCA_CDC=1: the USB serial console (a diagnostic build)')
     args = ap.parse_args()
     os.chdir(ROOT)
     import build
@@ -34,6 +37,12 @@ def main():
     extra = ['FELUCCA_SLICE=' + args.slice] if args.slice else []
     if args.nvoice:
         extra.append('NVOICE=' + args.nvoice)
+    if args.board:
+        extra.append('BOARD=' + args.board)
+    if args.model:
+        extra.append('MODEL=' + args.model)
+    if args.cdc:
+        extra.append('FELUCCA_CDC=1')
     subprocess.run(['wsl', '-d', args.distro, '--cd', src, '--exec', 'env',
                     'JIELI_TOOLCHAIN=' + args.toolchain, 'AC79_SDK=' + sdk, *extra,
                     'python3', '-c', code], check=True)
