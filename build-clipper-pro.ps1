@@ -71,7 +71,9 @@ Write-Host "== Making the installer site" -ForegroundColor Cyan
 python web/make_site.py --pro $ver build/clipper-pro-site @pk
 if ($LASTEXITCODE -ne 0) { throw "make_site failed" }
 if ($Publish) {                                    # docs\ = the site GitHub Pages serves (main, /docs)
-  if (Test-Path docs) { Get-ChildItem docs -Force | Where-Object { $_.Name -ne 'sloop' } | Remove-Item -Recurse -Force }
+  foreach ($o in @('webapp', 'firmware', 'index.html')) {   # (only the site's own: docs\*.md and docs\sloop stay)
+    if (Test-Path "docs\$o") { Remove-Item -Recurse -Force "docs\$o" }
+  }
   New-Item -ItemType Directory -Force docs | Out-Null
   Copy-Item -Recurse -Force build\clipper-pro-site\* docs\
   New-Item -ItemType File -Force docs\.nojekyll | Out-Null
