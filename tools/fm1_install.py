@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Install a Felucca package (.fwsc) on an FM-1 over USB-MIDI.
+"""Install a Felucca package (.fwsc) on an FM-1 (or an M-Vave SMK-37 Pro) over USB-MIDI.
 
 The same update as the web installer (web/fm1ota.js): step 1, the
 running firmware reads parts of the package and starts the update loader;
@@ -9,8 +9,12 @@ step 2, the loader reads the whole package and writes it. In both steps the
 device asks (SysEx read requests on the logical image) and we answer. Then
 the FM-1 restarts and the installed identity is checked.
 
-  fm1_install.py PACKAGE.fwsc [--port NAME] [--yes] [--force]
+  fm1_install.py PACKAGE.fwsc [PACKAGE.fwsc ...] [--port NAME] [--yes] [--force] [--fm1]
   fm1_install.py --info [--port NAME]
+
+With several packages (SLOOP Pro: sloop-pro.fwsc, sloop-pro-elite.fwsc, sloop-pro-mke.fwsc), the one made for
+the connected keyboard's model is installed: SMK-37 Pro, SMK-37 Elite or MKE-P37 by name; a Starrykey 37 Play
+or an SMK-37 that does not name its model takes the SMK-37 Pro one. A directory stands for its .fwsc files.
 
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs mido with python-rtmidi.
@@ -19,7 +23,15 @@ Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
 loader / no restart), 6 wrong model, another identity after the install, or the
 FM-1 is in the update mode of another firmware (only SLOOP's own loader,
-ota-FM-1_9XX, is resumed).
+ota-FM-1_9XX or ota-SMK-37 Pro_9XX, is resumed).
+
+Packages: 20 interleave blocks (FM-1, SLOOP, SMK-37 Pro up to v011) or more (the stock SMK-37 Pro
+v016 has 36: the extra markers are 0x7D); the count is detected and checked with the files' CRCs.
+
+A stock package (without SLOOP's loader) is checked by its contents, not by the identity it or the
+device reports: one laid out for the FM-1 (flash.bin's length, its region table) is never written to an
+SMK-37, and to a device that reports an FM-1 only when the user confirms it is one (--fm1, or the
+question): an SMK-37 running a third-party FM-1 firmware reports an FM-1 too.
 """
 import argparse
 import queue
@@ -31,17 +43,26 @@ HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
-BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
+BLOCKS, BLK, KEEP = 20, 0x30, 0x2F         # BLOCKS: the identity blocks (more may follow, see block_count)
+MAX_BLOCKS = 64
 LOADER_MARK = b"FELUCCA-LOADER-1"
-PORT_RE = re.compile(r"fm-1|clipper|felucca|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
+PORT_RE = re.compile(r"fm-1|smk|elite|mke-p37|starry|felucca|sloop|clipper|melodee|fomni|x0x|makkuro|maku|rainbow|snoop|vector|vox|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
+# (the FM-1 and the SMK-37 family under SLOOP / Felucca, under CLIPPER, the other SMK-37 ports, the update loaders,
+# the stock firmware: as web/fm1ota.js PORT_RE)
+OWN_LOADER_RE = re.compile(r"ota-(FM-1|SMK-37 Pro|SMK-37 Elite|MKE-P37)_9\d\d", re.I)   # SLOOP's own update loader
 
-# seconds; the tests shorten them
+# ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom): "SMK-37_9NN", their own updater and
+# package format (as web/fm1ota.js OTHER_SMK): never written from here
+OTHER_SMK_RE = re.compile(r"(ota-)?SMK-37_9\d\d", re.I)
+
+# seconds; the tests shorten them (2.8: the loader and the restart waited for up to 60 s, as the web installer)
 DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
          "poll": 1.0, "hs": 1.0, "idle_check": 8.0, "idle_write": 180.0,
-         "wait_loader": 30.0, "wait_reboot": 40.0}
+         "wait_loader": 60.0, "wait_reboot": 60.0}
 
 EXIT = {"usage": 2, "badpkg": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
-        "noloader": 5, "noreturn": 5, "mismatch": 6, "foreign": 6}
+        "noloader": 5, "noreturn": 5, "mismatch": 6, "foreign": 6, "other": 6,
+        "fm1pkg": 6, "board": 6, "fm1confirm": 6}
 
 
 class InstallError(Exception):
@@ -111,30 +132,80 @@ def parse_identity(pkt):
     d = unpack7(pkt[1:-1])
     if len(d) != 34 or d[:3] != b"\x00\x59\x11":
         return None
-    txt = d[6:33].rstrip(b"\0").decode("latin-1")
+    txt = d[6:33].split(b"\0")[0].decode("latin-1")
     m = re.fullmatch(r"([^_]+)_(\d+)", txt)
     return Identity(txt, m[1], int(m[2])) if m else None
 
 
 # --------------------------------------------------------------- package ---
 
+def _id_char(m, i):
+    c = (m - i - 1) & 0xFF
+    return 0x20 <= c < 0x7F
+
+
+def identity_blocks(raw):
+    """the identity blocks: 20, or more when the identity is longer (the Starrykey 37 Play V016's
+    "STARRYKEY-37 PLAY_016" takes 21): further identity markers count only when unused 0x7D markers follow
+    them (the 36-block layout)"""
+    def marker(k):
+        return raw[k * BLK + KEEP] if (k + 1) * BLK <= len(raw) else None
+    n = BLOCKS
+    while n < MAX_BLOCKS and (m := marker(n)) is not None and m != 0x7D and _id_char(m, n):
+        n += 1
+    return n if n > BLOCKS and marker(n) == 0x7D else BLOCKS
+
+
 def product_of(raw):
-    """the package identity ("FM-1_906"): one marker byte after each of the first 20 blocks"""
+    """the package identity ("FM-1_906", "SMK-37 Pro_016"): one marker byte after each identity block (0x7D: none);
+    past the first 20 only when the package really has those blocks (the layout's count)"""
     if len(raw) < BLOCKS * BLK:
         raise InstallError("badpkg", "not an FM-1 package (too short)")
-    return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
+    ib = identity_blocks(raw)
+    n = BLOCKS if ib == BLOCKS else min(ib, deinterleave(raw)[1])
+    return "".join(chr((m - i - 1) & 0xFF) for i in range(n) if (m := raw[i * BLK + KEEP]) != 0x7D)
 
 
-def logical_image(raw):
-    """the image the device reads during an update: the package without the 20 marker bytes"""
+def block_count(raw):
+    """interleave blocks: the identity blocks, then more while the marker is the unused 0x7D (SMK-37 Pro v016: 36).
+    A 20-block package can have 0x7D there by chance: load_package checks the CRCs and falls back."""
+    n = identity_blocks(raw)
+    while n < MAX_BLOCKS and (n + 1) * BLK <= len(raw) and raw[n * BLK + KEEP] == 0x7D:
+        n += 1
+    return n
+
+
+def logical_image(raw, blocks=BLOCKS):
+    """the image the device reads during an update: the package without the marker bytes"""
     out = bytearray()
-    for i in range(BLOCKS):
+    for i in range(blocks):
         out += raw[i * BLK:i * BLK + KEEP]
-    return bytes(out + raw[BLOCKS * BLK:])
+    return bytes(out + raw[blocks * BLK:])
+
+
+def deinterleave(raw):
+    """-> (logical image, block count): the detected count when the files' CRCs agree, else 20"""
+    n = block_count(raw)
+    image = logical_image(raw, n)
+    if n != BLOCKS and package_damage(image):
+        alt = logical_image(raw, BLOCKS)
+        if not package_damage(alt):
+            return alt, BLOCKS
+    return image, n
 
 
 def model_of(text):
     return text.split("_")[0].removeprefix("ota-")
+
+
+# the SMK-37 Pro, SMK-37 Elite, MKE-P37, Starrykey 37 Play and the SMK-37+VA mod: one keyboard under several names
+SMK_FAMILY = re.compile(r"SMK-37[ +].*|MKE-P37|STARRYKEY-37.*", re.I)
+
+
+def same_keyboard(a, b):
+    """the models of identities a and b are the same hardware (never an FM-1 and an SMK)"""
+    ma, mb = model_of(a), model_of(b)
+    return ma == mb or bool(SMK_FAMILY.fullmatch(ma) and SMK_FAMILY.fullmatch(mb))
 
 
 # ------------------------------------------------------------------ MIDI ---
@@ -187,6 +258,212 @@ class MidoLink:
                 pass
 
 
+class WinmmLink:
+    """one MIDI in/out pair over Windows' own MIDI API (winmm.dll, through ctypes): nothing to install, nothing to
+    compile (python-rtmidi has no Windows wheel for Python 3.13 and newer). SysEx in: NBUF buffers handed to the
+    driver, polled for MHDR_DONE (CALLBACK_NULL: no WinMM call from a driver callback), re-armed after each; the
+    messages are put together from F0 to F7 across buffers. SysEx out: one header, waited for (MHDR_DONE)."""
+    NBUF, BUFSZ = 16, 4096
+
+    def __init__(self, backend, in_name, out_name):
+        self.b, self.w, self.name = backend, backend.w, in_name
+        self.q, self.part, self.hin, self.hout, self.bufs = queue.Queue(), bytearray(), None, None, []
+        ct = backend.ct
+        hin = ct.c_void_p()
+        r = self.w.midiInOpen(ct.byref(hin), backend.in_id(in_name), 0, 0, 0)
+        if r:
+            raise IOError(f"midiInOpen {in_name!r}: error {r}" + (" (the port is in use: close Chrome / Edge and "
+                                                                    "other MIDI apps)" if r == 4 else ""))
+        self.hin = hin.value                          # (the handle as a number: hashable, falsy when null)
+        try:
+            for _ in range(self.NBUF):
+                data = ct.create_string_buffer(self.BUFSZ)
+                h = backend.MIDIHDR()
+                h.lpData = ct.cast(data, ct.c_void_p)
+                h.dwBufferLength = self.BUFSZ
+                self.bufs.append((data, h))
+                self._arm(h, first=True)
+            self.w.midiInStart(self.hin)
+            hout = ct.c_void_p()
+            r = self.w.midiOutOpen(ct.byref(hout), backend.out_id(out_name), 0, 0, 0)
+            if r:
+                raise IOError(f"midiOutOpen {out_name!r}: error {r}" + (" (the port is in use: close Chrome / Edge "
+                                                                         "and other MIDI apps)" if r == 4 else ""))
+            self.hout = hout.value
+        except Exception:
+            self.close()
+            raise
+        time.sleep(DELAY["open"])
+
+    def _arm(self, h, first=False):
+        ct, sz = self.b.ct, self.b.ct.sizeof(self.b.MIDIHDR)
+        if not first:
+            self.w.midiInUnprepareHeader(self.hin, ct.byref(h), sz)
+        h.dwBytesRecorded = 0
+        h.dwFlags = 0
+        self.w.midiInPrepareHeader(self.hin, ct.byref(h), sz)
+        self.w.midiInAddBuffer(self.hin, ct.byref(h), sz)
+
+    def _poll(self):
+        # the driver fills the buffers in the order they were handed to it: taken in that order (a SysEx split
+        # across buffers comes back together), each handed back at the end of the queue
+        while self.bufs and self.bufs[0][1].dwFlags & 1:  # MHDR_DONE: filled (or returned by a reset)
+            data, h = self.bufs.pop(0)
+            n = h.dwBytesRecorded
+            if n:
+                self._take(data.raw[:n])
+            self.bufs.append((data, h))
+            if self.hin:
+                self._arm(h)
+
+    def _take(self, chunk):
+        for c in chunk:
+            if c == 0xF0:
+                self.part = bytearray([c])
+            elif self.part:
+                if c >= 0xF8:                         # (realtime bytes inside a SysEx: not part of it)
+                    continue
+                self.part.append(c)
+                if c == 0xF7:
+                    self.q.put(bytes(self.part))
+                    self.part = bytearray()
+                elif len(self.part) > 65536:
+                    self.part = bytearray()
+
+    @property
+    def lost(self):
+        return self.name not in self.b.input_names()
+
+    def send(self, pkt):
+        ct, sz = self.b.ct, self.b.ct.sizeof(self.b.MIDIHDR)
+        if not self.hout:
+            return False
+        data = ct.create_string_buffer(bytes(pkt), len(pkt))
+        h = self.b.MIDIHDR()
+        h.lpData = ct.cast(data, ct.c_void_p)
+        h.dwBufferLength = len(pkt)
+        if self.w.midiOutPrepareHeader(self.hout, ct.byref(h), sz):
+            return False
+        ok = self.w.midiOutLongMsg(self.hout, ct.byref(h), sz) == 0
+        end = time.monotonic() + 2.0
+        while ok and not (h.dwFlags & 1) and time.monotonic() < end:
+            time.sleep(0.001)
+        ok = ok and bool(h.dwFlags & 1)
+        for _ in range(100):                          # (still playing: MIDIERR_STILLPLAYING 65)
+            if self.w.midiOutUnprepareHeader(self.hout, ct.byref(h), sz) != 65:
+                break
+            time.sleep(0.01)
+        return ok
+
+    def read(self, timeout):
+        end = time.monotonic() + max(timeout, 0)
+        while True:
+            self._poll()
+            try:
+                return self.q.get_nowait()
+            except queue.Empty:
+                pass
+            if time.monotonic() >= end:
+                return None
+            time.sleep(0.001)
+
+    def drain(self):
+        self._poll()
+        while not self.q.empty():
+            self.q.get_nowait()
+
+    def close(self):
+        ct = self.b.ct
+        sz = ct.sizeof(self.b.MIDIHDR)
+        try:
+            if self.hin:
+                hin, self.hin = self.hin, None
+                self.w.midiInStop(hin)
+                self.w.midiInReset(hin)               # (gives every buffer back)
+                for _, h in self.bufs:
+                    self.w.midiInUnprepareHeader(hin, ct.byref(h), sz)
+                self.w.midiInClose(hin)
+        except Exception:
+            pass
+        try:
+            if self.hout:
+                hout, self.hout = self.hout, None
+                self.w.midiOutReset(hout)
+                self.w.midiOutClose(hout)
+        except Exception:
+            pass
+
+
+class WinmmBackend:
+    """Windows: the MIDI ports through winmm.dll (no mido, no python-rtmidi). Port names as Windows gives them; a
+    name given twice gets " #2", " #3" (as the order Windows lists them)"""
+
+    def __init__(self, dll=None):
+        import ctypes
+        self.ct = ctypes
+        self.w = dll if dll is not None else ctypes.WinDLL("winmm")
+
+        class MIDIHDR(ctypes.Structure):
+            _fields_ = [("lpData", ctypes.c_void_p), ("dwBufferLength", ctypes.c_uint32),
+                        ("dwBytesRecorded", ctypes.c_uint32), ("dwUser", ctypes.c_size_t),
+                        ("dwFlags", ctypes.c_uint32), ("lpNext", ctypes.c_void_p), ("reserved", ctypes.c_size_t),
+                        ("dwOffset", ctypes.c_uint32), ("dwReserved", ctypes.c_size_t * 8)]
+
+        class MIDIINCAPSW(ctypes.Structure):
+            _fields_ = [("wMid", ctypes.c_uint16), ("wPid", ctypes.c_uint16), ("vDriverVersion", ctypes.c_uint32),
+                        ("szPname", ctypes.c_wchar * 32), ("dwSupport", ctypes.c_uint32)]
+
+        class MIDIOUTCAPSW(ctypes.Structure):
+            _fields_ = [("wMid", ctypes.c_uint16), ("wPid", ctypes.c_uint16), ("vDriverVersion", ctypes.c_uint32),
+                        ("szPname", ctypes.c_wchar * 32), ("wTechnology", ctypes.c_uint16),
+                        ("wVoices", ctypes.c_uint16), ("wNotes", ctypes.c_uint16),
+                        ("wChannelMask", ctypes.c_uint16), ("dwSupport", ctypes.c_uint32)]
+        self.MIDIHDR, self.INCAPS, self.OUTCAPS = MIDIHDR, MIDIINCAPSW, MIDIOUTCAPSW
+        vp, u = ctypes.c_void_p, ctypes.c_uint
+        for fn, args in (("midiInOpen", [ctypes.POINTER(vp), u, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_uint32]),
+                         ("midiOutOpen", [ctypes.POINTER(vp), u, ctypes.c_size_t, ctypes.c_size_t, ctypes.c_uint32]),
+                         ("midiInPrepareHeader", [vp, vp, u]), ("midiInUnprepareHeader", [vp, vp, u]),
+                         ("midiInAddBuffer", [vp, vp, u]), ("midiOutPrepareHeader", [vp, vp, u]),
+                         ("midiOutUnprepareHeader", [vp, vp, u]), ("midiOutLongMsg", [vp, vp, u]),
+                         ("midiInStart", [vp]), ("midiInStop", [vp]), ("midiInReset", [vp]), ("midiInClose", [vp]),
+                         ("midiOutReset", [vp]), ("midiOutClose", [vp]),
+                         ("midiInGetDevCapsW", [ctypes.c_size_t, vp, u]), ("midiOutGetDevCapsW", [ctypes.c_size_t, vp, u])):
+            try:
+                f = getattr(self.w, fn)
+                f.argtypes, f.restype = args, u
+            except (AttributeError, TypeError):
+                pass
+
+    def _names(self, out):
+        n = (self.w.midiOutGetNumDevs if out else self.w.midiInGetNumDevs)()
+        caps_t = self.OUTCAPS if out else self.INCAPS
+        get = self.w.midiOutGetDevCapsW if out else self.w.midiInGetDevCapsW
+        names, seen = [], {}
+        for i in range(n):
+            c = caps_t()
+            if get(i, self.ct.byref(c), self.ct.sizeof(c)):
+                continue
+            nm = c.szPname
+            seen[nm] = seen.get(nm, 0) + 1
+            names.append((nm if seen[nm] == 1 else f"{nm} #{seen[nm]}", i))
+        return names
+
+    def input_names(self):
+        return [nm for nm, _ in self._names(False)]
+
+    def output_names(self):
+        return [nm for nm, _ in self._names(True)]
+
+    def in_id(self, name):
+        return dict(self._names(False))[name]
+
+    def out_id(self, name):
+        return dict(self._names(True))[name]
+
+    def open(self, in_name, out_name):
+        return WinmmLink(self, in_name, out_name)
+
+
 class MidoBackend:
     def __init__(self):
         import mido
@@ -202,6 +479,13 @@ class MidoBackend:
         return MidoLink(self, in_name, out_name)
 
 
+def port_base(n):
+    """a port name without its in / out part ("MIDIIN2 (X)" / "MIDIOUT2 (X)", "X 1", "X In"), as web/fm1ota.js portBase"""
+    n = re.sub(r"^MIDI(?:IN|OUT)(\d*) \((.*)\)$", r"\2 \1", n, flags=re.I)
+    n = re.sub(r"\s+\d+$", "", n.strip())
+    return re.sub(r"[ -](?:in|out|input|output)$", "", n, flags=re.I).strip().lower()
+
+
 def pair_output(name, outs):
     if name in outs:
         return name
@@ -209,6 +493,12 @@ def pair_output(name, outs):
     same = [o for o in outs if re.sub(r"\s+\d+$", "", o) == base]
     if len(same) == 1:
         return same[0]
+    def pair(n):                               # MIDIIN2 (X) / MIDIOUT2 (X): "x 2"
+        return re.sub(r"^MIDI(?:IN|OUT)(\d*) \((.*)\)$", r"\2 \1", n, flags=re.I).strip().lower()
+    for key in (pair, port_base):
+        same = [o for o in outs if key(o) == key(name)]
+        if len(same) == 1:
+            return same[0]
     return outs[0] if len(outs) == 1 else None
 
 
@@ -249,10 +539,15 @@ class Updater:
             return mine + [n for n in names if n not in mine and PORT_RE.search(n)]
         return [n for n in names if PORT_RE.search(n)]
 
-    def find(self, want=None, only_port=True):
-        """the first matching port that answers the handshake (and want(identity))"""
+    def find(self, want=None, only_port=True, deep=False):
+        """the first matching port that answers the handshake (and want(identity)). deep (the update loader only):
+        when no named port answered, the other ports too, taken only when they answer the handshake: Windows may
+        name the loader generically ("USB MIDI Device"), as web/fm1ota.js find(filter, deep)"""
         outs = self.backend.output_names()
-        for name in self.candidates(only_port):
+        names = self.candidates(only_port)
+        if deep and not self.port:
+            names = names + [n for n in self.backend.input_names() if n not in names]
+        for name in names:
             out = pair_output(name, outs)
             if not out:
                 continue
@@ -266,10 +561,10 @@ class Updater:
             link.close()
         return None
 
-    def wait_for(self, want, secs):
+    def wait_for(self, want, secs, deep=False):
         end = time.monotonic() + secs
         while time.monotonic() < end:
-            dev = self.find(want, only_port=False)
+            dev = self.find(want, only_port=False, deep=deep)
             if dev:
                 return dev
             time.sleep(DELAY["retry"])
@@ -318,7 +613,7 @@ class Updater:
                                f"{served} requests; nothing was written")
         step("loader")
         time.sleep(DELAY["loader"])
-        ota = self.wait_for(lambda i: i.loader, DELAY["wait_loader"])
+        ota = self.wait_for(lambda i: i.loader, DELAY["wait_loader"], deep=True)
         if not ota:
             raise InstallError("noloader", "the update loader did not appear. Replug the USB cable and "
                                            "run the install again: the FM-1 stays in update mode until it is done")
@@ -350,13 +645,22 @@ class Updater:
         step("done", back.id.text)
         return back.id.text
 
-    def install(self, dev, image, product, step=lambda *a: None):
+    def install(self, dev, image, product, step=lambda *a: None, fm1_ok=False):
         """running firmware -> loader -> new firmware; dev from find(). A device already in
         update mode only needs the write."""
-        if model_of(dev.id.text) != model_of(product):
+        if OTHER_SMK_RE.fullmatch(dev.id.text):
+            dev.link.close()
+            raise InstallError("other", f"the keyboard runs one of ChanceTheMaker's SMK firmwares ({dev.id.text}), "
+                                        "which take only their own packages: nothing was sent. Go back to the M-Vave "
+                                        "firmware first (its own restore page, or M-Vave's M-UPGRADE), then install")
+        refusal = board_refusal(model_of(dev.id.text), image, fm1_ok)   # (the package's board, before anything)
+        if refusal:
+            dev.link.close()
+            raise refusal
+        if not same_keyboard(dev.id.text, product):
             dev.link.close()
             raise InstallError("model", f"the device is {dev.id.text}, the package is for {product}")
-        if dev.id.loader and not re.fullmatch(r"ota-FM-1_9\d\d", dev.id.text, re.I):
+        if dev.id.loader and not OWN_LOADER_RE.fullmatch(dev.id.text):
             dev.link.close()           # another firmware's loader: its image layout may differ
             raise InstallError("foreign", f"the FM-1 is in the update mode of another firmware ({dev.id.text}): "
                                           "finish that update with its own updater (M-UPGRADE), then install again")
@@ -378,12 +682,43 @@ def load_package(path, force):
     if LOADER_MARK not in raw and not force:
         raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; "
                                      "only Felucca's own packages are installed (--force overrides)")
-    image = logical_image(raw)
+    image, _ = deinterleave(raw)
     bad = package_damage(image)
     if bad:
         raise InstallError("badpkg", f"{path}: damaged package ({bad}); nothing was written. "
                                      "Download it again.")
     return product, image
+
+
+def load_packages(paths, force):
+    """the packages given (a directory: its .fwsc files) -> [(path, product, image)]"""
+    from pathlib import Path
+    files = []
+    for p in paths:
+        p = Path(p)
+        files += sorted(p.glob("*.fwsc")) if p.is_dir() else [p]
+    if not files:
+        raise InstallError("badpkg", f"no .fwsc package in {', '.join(map(str, paths))}")
+    out = []
+    for f in files:
+        product, image = load_package(str(f), force)
+        out.append((str(f), product, image))
+    return out
+
+
+def pick_package(device_text, pkgs):
+    """the package for the connected device among several (SLOOP Pro: one per model): the same model by name;
+    else (a Starrykey 37 Play, an SMK-37 that does not name its model) the SMK-37 Pro one; else the only one of the
+    same keyboard. None: none fits (install() then says why)"""
+    if len(pkgs) == 1:
+        return pkgs[0]
+    m = model_of(device_text).lower()
+    same = [p for p in pkgs if model_of(p[1]).lower() == m]
+    if same:
+        return same[0]
+    kin = [p for p in pkgs if same_keyboard(device_text, p[1])]
+    pro = [p for p in kin if model_of(p[1]).lower() == "smk-37 pro"]
+    return pro[0] if pro else (kin[0] if len(kin) == 1 else None)
 
 
 def _crc16(data, crc=0):
@@ -426,9 +761,110 @@ def package_damage(image):
         name = e[0x40:0x50].split(b"\0")[0].decode("ascii", "replace")
         if off + size > len(image):
             return f"{name}: cut short"
-        if _crc16(image[off:off + size]) != dcrc:
+        typ = int.from_bytes(e[0:2], "little")
+        # flash.bin (0) and ota.bin (100), what the device installs, carry the CRC of their bytes as
+        # served. The stock packer's other entries (USR 50, isd_config.ini 52, script.ver, blimit.bin)
+        # store a CRC of something else (decrypted contents): checked for their bounds only.
+        if typ in (0, 100) and _crc16(image[off:off + size]) != dcrc:
             return f"{name}: CRC"
     return None
+
+
+# ---------------------------------------------------- the package's board ---
+# Read from the package itself, never from an identity: the FM-1's and the SMK-37's official packages share the
+# head (0x0-0x3FFF) and the update loader, and a third-party FM-1 firmware running on an SMK-37 reports an FM-1
+# identity. Installed on an SMK-37, the FM-1's stock package erases the factory calibration (BTIF / USRTRIM
+# 0xC0000-0xC1FFF) and writes the FM-1's USR image over the SMK's (0xF4000). The board: flash.bin's length (SMK-37
+# 0x9D000, FM-1 0x93000), its region table (app offset 0x60 = flash 0x4060-0x411F, SFC-enciphered with the chip
+# key 0x980F: BTIF and USR at 0xC0000 / 0xF4000 on the SMK-37, 0xE9000 / 0xEA000 on the FM-1) and where a USR
+# image (UFW entry 50) goes.
+FM1_STOCK_MSG = "This is the FM-1 firmware. Your keyboard is an SMK-37? Don't install it."
+FM1_CONFIRM_MSG = (FM1_STOCK_MSG + " On an SMK-37 it erases the keyboard's calibration. Install it only on an FM-1. "
+                   "SMK-37 owners whose keyboard runs an FM-1 firmware (it then reports an FM-1): use the SMK-37 "
+                   "package from M-Vave, never this one.")
+LAYOUT = {"smk": (0x9D000, 0xC0000, (0xF4000, 0xA000)), "fm1": (0x93000, 0xE9000, (0xEA000, 0x12000))}
+SMK_MODEL_RE = re.compile(r"(ota-)?(SMK-37([ +].*)?|MKE-P37|STARRYKEY-37.*)", re.I)   # the SMK-37 keyboard's names
+
+
+def _sfc(data, base, key=0x980F):
+    """the JieLi SFC cipher of the app area (32-byte blocks, its own inverse)"""
+    out = bytearray(data)
+    for i in range(0, len(out), 32):
+        k = (key ^ ((base + i) >> 2)) & 0xFFFF
+        for j in range(i, min(i + 32, len(out))):
+            out[j] ^= k & 0xFF
+            k = ((k << 1) ^ (0x1021 if k & 0x8000 else 0)) & 0xFFFF
+    return bytes(out)
+
+
+def package_files(image):
+    """[(type, offset, size, USR target, USR size)] from the UFW file list"""
+    if len(image) < 0x40:
+        return []
+    rd = lambda b, o, n: int.from_bytes(b[o:o + n], "little")  # noqa: E731
+    count = rd(_dec(image[0:0x40]), 8, 2)
+    out = []
+    for i in range(min(count, 11)):
+        if 0x90 + i * 0x50 > len(image):
+            break
+        e = _dec(image[0x40 + i * 0x50:0x90 + i * 0x50])
+        out.append((rd(e, 0, 2), rd(e, 8, 4), rd(e, 12, 4), rd(e, 0x1C, 4), rd(e, 0x20, 4)))
+    return out
+
+
+def region_table(flash):
+    """flash.bin's region table: {name: (address, size)}"""
+    if len(flash) < 0x4120:
+        return {}
+    t, out = _sfc(flash[0x4060:0x4120], 0x60), {}
+    for r in range(0, 0xC0, 32):
+        name = bytearray()
+        for c in t[r + 16:r + 32]:
+            if not 0x20 < c < 0x7F:
+                break
+            name.append(c)
+        if name:
+            out[name.decode()] = (int.from_bytes(t[r + 4:r + 8], "little"), int.from_bytes(t[r + 8:r + 12], "little"))
+    return out
+
+
+def package_board(image):
+    """"smk", "fm1" (any sign of the FM-1's layout) or None (not a package, or another layout)"""
+    files = package_files(image)
+    fl = next((f for f in files if f[0] == 0), None)
+    if not fl or fl[1] + fl[2] > len(image):
+        return None
+    rt = region_table(image[fl[1]:fl[1] + fl[2]])
+    usr = [(f[3], f[4]) for f in files if f[0] == 50]
+    s_len, s_btif, s_usr = LAYOUT["smk"]
+    f_len, f_btif, f_usr = LAYOUT["fm1"]
+    if fl[2] == s_len and rt.get("BTIF", (0,))[0] == s_btif and rt.get("USR") == s_usr and all(u == s_usr for u in usr):
+        return "smk"
+    if fl[2] == f_len or rt.get("BTIF", (0,))[0] == f_btif or rt.get("USR", (0,))[0] == f_usr[0] or \
+            any(u[0] == f_usr[0] for u in usr):
+        return "fm1"
+    return None
+
+
+def is_stock(image):
+    """a stock package (M-Vave's, or any without our update loader): flash.bin, and a loader that is not ours"""
+    return any(f[0] == 0 for f in package_files(image)) and LOADER_MARK not in image
+
+
+def board_refusal(model, image, fm1_ok=False):
+    """None, or why image must not be written to a device reporting model (nothing is sent): "fm1pkg" an FM-1
+    layout for an SMK-37; "board" a stock package not laid out for the SMK-37 on one; "fm1confirm" such a stock
+    package on a device reporting another model (an FM-1, or an SMK-37 under an FM-1 firmware), unless the user
+    confirmed the device is an FM-1 (fm1_ok)"""
+    board, smk = package_board(image), bool(SMK_MODEL_RE.fullmatch(model))
+    if smk and board == "fm1":
+        return InstallError("fm1pkg", f"{FM1_STOCK_MSG} (The device reports {model}.) Nothing was sent.")
+    if not is_stock(image) or board == "smk":
+        return None
+    if smk:
+        return InstallError("board", "this package is not laid out for the SMK-37 (flash.bin, region table): "
+                                     "nothing was sent")
+    return None if fm1_ok else InstallError("fm1confirm", FM1_CONFIRM_MSG + " If the device is an FM-1: --fm1.")
 
 
 def not_found(up):
@@ -473,20 +909,32 @@ def run(a, backend, out, ask):
         mode = "update loader (update not finished)" if dev.id.loader else "running"
         print(f"{dev.id.text}  [{mode}]  port: {dev.name}", file=out)
         return 0
-    product, image = load_package(a.package, a.force)
-    print(f"package: {product}  ({a.package})", file=out)
+    pkgs = load_packages(a.package, a.force)
     dev = up.find()
+    if not dev and any(SMK_MODEL_RE.fullmatch(model_of(p[1])) for p in pkgs):
+        dev = up.find(lambda i: i.loader, deep=True)    # (left in update mode under a generic port name)
     if not dev:
         raise not_found(up)
     print(f"device:  {dev.id.text}  ({dev.name})" + ("  in update mode: the write will be finished" if dev.id.loader else ""),
           file=out)
+    pick = pick_package(dev.id.text, pkgs)
+    if not pick:
+        dev.link.close()
+        raise InstallError("model", f"none of the packages ({', '.join(p[1] for p in pkgs)}) is for {dev.id.text}")
+    path, product, image = pick
+    print(f"package: {product}  ({path})", file=out)
     if not a.yes and not ask("Install? Do not unplug the FM-1 while writing. [y/N] "):
         dev.link.close()
         print("cancelled", file=out)
         return 1
+    fm1_ok = a.fm1                       # a stock package not laid out for the SMK-37: only on an FM-1, confirmed
+    if (not fm1_ok and not a.yes and is_stock(image) and package_board(image) != "smk"
+            and not SMK_MODEL_RE.fullmatch(model_of(dev.id.text))):
+        print(FM1_CONFIRM_MSG, file=out)
+        fm1_ok = ask("Is the device an FM-1 (not an SMK-37)? [y/N] ")
     prog = Progress(out)
     try:
-        up.install(dev, image, product, prog)
+        up.install(dev, image, product, prog, fm1_ok)
     finally:
         prog.end()
     return 0
@@ -501,20 +949,27 @@ def ask_tty(prompt):
 
 def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("package", nargs="?", help="Felucca package (.fwsc)")
+    ap.add_argument("package", nargs="*", help="Felucca package (.fwsc); several (or a directory): the one for the "
+                                               "connected model")
     ap.add_argument("--info", action="store_true", help="print the identity of the connected FM-1")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker")
+    ap.add_argument("--fm1", action="store_true", help="the device is an FM-1: a stock package not laid out for the SMK-37 may be written (never to an SMK-37)")
     a = ap.parse_args(argv)
     if bool(a.info) == bool(a.package):
         ap.error("give a PACKAGE.fwsc or --info")
     try:
         if backend is None:
-            try:
-                backend = MidoBackend()
-            except ImportError:
-                raise InstallError("usage", "needs mido and python-rtmidi (pip install mido python-rtmidi)")
+            import os
+            if os.name == "nt" and os.environ.get("FM1_MIDI", "winmm") != "mido":
+                backend = WinmmBackend()           # Windows: its own MIDI API, nothing to install (FM1_MIDI=mido: mido)
+            else:
+                try:
+                    import rtmidi  # noqa: F401
+                    backend = MidoBackend()
+                except ImportError:
+                    raise InstallError("usage", "needs mido and python-rtmidi (pip install mido python-rtmidi)")
         return run(a, backend, out, ask)
     except InstallError as e:
         print(f"error: {e}", file=sys.stderr)

@@ -1,0 +1,373 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+     Clipper Pro installer: Clipper on the M-Vave SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play). web/make_site.py --pro
+     inlines smkpkg.js, smkota.js and the packages' metadata (one package per model) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper Pro installer</title>
+<meta name="theme-color" content="#000000">
+<style>
+  :root { --bg: #000; --fg: #f2f2f2; --dim: #8a8a92; --tile: #16161a; --line: #2a2a30;
+          --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.6 "Helvetica Neue", -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
+  main { max-width: 600px; margin: 0 auto; padding: 32px 16px 48px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo svg { display: block; width: 200px; height: auto; }
+  .logo rect:first-child { fill: transparent; }
+  .badge { font-weight: 700; letter-spacing: .14em; color: var(--orange); border: 2px solid var(--orange);
+           padding: 2px 8px; font-size: 18px; line-height: 1.2; }
+  .langs { display: flex; gap: 10px; }
+  .lang { font-size: 12px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none;
+          border: 0; padding: 0; }
+  .lang[aria-current="true"] { color: var(--fg); text-decoration: none; }
+  .strip { display: flex; height: 4px; margin: 20px 0 24px; }
+  .strip i { flex: 1; } .strip i:nth-child(1) { background: var(--blue); } .strip i:nth-child(2) { background: var(--green); }
+  .strip i:nth-child(3) { background: var(--yellow); } .strip i:nth-child(4) { background: var(--orange); }
+  h1 { font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+  h2 { font-size: 15px; margin: 26px 0 8px; }
+  .lead { font-size: 20px; line-height: 1.35; margin: 0 0 24px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 28px; }
+  .tile { background: var(--tile); padding: 10px 10px 12px; border-top: 3px solid var(--c); min-height: 92px; }
+  .tile b { display: block; font-size: 22px; font-weight: 600; color: var(--c); line-height: 1.1; }
+  .tile span { display: block; font-size: 12px; color: var(--dim); margin-top: 4px; }
+  p { margin: 0 0 14px; }
+  ol { margin: 0 0 14px; padding-left: 22px; }
+  fieldset { border: 1px solid var(--line); padding: 10px 12px; margin: 0 0 16px; }
+  legend { font-size: 12.5px; color: var(--dim); padding: 0 4px; }
+  label.m { display: inline-flex; align-items: center; gap: 6px; margin: 2px 14px 2px 0; cursor: pointer; }
+  label.ck { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; cursor: pointer; }
+  button#go { font: 600 15px/1 inherit; font-family: inherit; background: var(--orange); color: #000; border: 0;
+              padding: 16px 0; width: 100%; cursor: pointer; letter-spacing: .08em; text-transform: uppercase; }
+  button#go:disabled { background: var(--tile); color: var(--dim); cursor: default; }
+  #status { margin-top: 14px; min-height: 1.6em; font-variant-numeric: tabular-nums; }
+  #status.bad { color: var(--red); } #status.good { color: var(--green); }
+  #device { color: var(--dim); font-size: 13px; min-height: 1.4em; }
+  .small { color: var(--dim); font-size: 12.5px; }
+  .small a, a { color: inherit; }
+  progress { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin-top: 16px; border: 0; background: var(--tile); }
+  progress::-webkit-progress-bar { background: var(--tile); }
+  progress::-webkit-progress-value { background: var(--orange); }
+  progress::-moz-progress-bar { background: var(--orange); }
+  pre { color: var(--dim); font-size: 11px; white-space: pre-wrap; margin-top: 12px; max-height: 180px; overflow: auto; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 18px; }
+  [hidden] { display: none !important; }
+  .ed { display: inline-block; margin: 8px 8px 0 0; padding: 10px 14px; background: var(--tile); text-decoration: none;
+        font: inherit; color: var(--fg); border: 0; cursor: pointer; }
+  @media (max-width: 440px) { .tiles { grid-template-columns: repeat(2, 1fr); } .logo svg { width: 150px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div class="logo"><!--LOGO--><span class="badge">PRO</span></div>
+    <div class="langs"><button class="lang" data-l="fr">français</button><button class="lang" data-l="en">english</button><button class="lang" data-l="ja">日本語</button></div></div>
+  <div class="strip"><i></i><i></i><i></i><i></i></div>
+  <!--BANNER-->
+  <h1 data-t="h1"></h1>
+  <p class="lead" data-t="lead"></p>
+  <div class="tiles">
+    <div class="tile" style="--c: var(--blue)"><b>37</b><span data-t="t1"></span></div>
+    <div class="tile" style="--c: var(--green)"><b>16</b><span data-t="t2"></span></div>
+    <div class="tile" style="--c: var(--yellow)"><b>4</b><span data-t="t3"></span></div>
+    <div class="tile" style="--c: var(--orange)"><b>MIDI</b><span data-t="t4"></span></div>
+  </div>
+  <h2 data-t="before"></h2>
+  <ol><li data-t="b1"></li><li data-t="b2"></li><li data-t="b3"></li></ol>
+  <fieldset>
+    <legend data-t="modelL"></legend>
+    <label class="m"><input type="radio" name="model" value="auto" checked> <span data-t="auto"></span></label>
+    <label class="m"><input type="radio" name="model" value="SMK-37 Pro"> SMK-37 Pro / Starrykey 37 Play</label>
+    <label class="m"><input type="radio" name="model" value="SMK-37 Elite"> SMK-37 Elite</label>
+    <label class="m"><input type="radio" name="model" value="MKE-P37"> MKE-P37</label>
+  </fieldset>
+  <label class="ck"><input type="checkbox" id="risk"> <span data-t="risk"></span></label>
+  <p><button id="go" disabled data-t="install"></button></p>
+  <p id="device"></p>
+  <progress id="bar" max="100" value="0"></progress>
+  <p id="status"></p>
+  <pre id="log"></pre>
+  <a class="ed" href="../editor/" data-t="editor"></a>
+  <hr>
+  <h2 data-t="backT"></h2>
+  <p class="small" data-t="back"></p>
+  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download</a></p>
+  <h2 data-t="rescueT"></h2>
+  <p class="small" data-t="rescue"></p>
+  <p class="small" data-t="other2"></p>
+  <hr>
+  <p class="small">Clipper Pro: Clipper by isod89 on the M-Vave SMK-37, with the SMK-37 board layer by genkigenki. Clipper grew out of
+    SLOOP and is based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
+    Everyone who made it possible: <a href="https://github.com/isod89/clipper-pro/blob/main/CREDITS.md" target="_blank" rel="noopener">CREDITS.md</a>.<br>
+    Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1).<br>
+    M-VAVE, SMK-37, MKE-P37 and Starrykey are trademarks of their respective owners; Clipper Pro is not affiliated with them.<br>
+    <span data-t="license"></span> <a href="https://github.com/isod89/clipper-pro" target="_blank" rel="noopener">github.com/isod89/clipper-pro</a></p>
+</main>
+<script type="module">
+/*LIB*/
+const $ = (id) => document.getElementById(id);
+const TEXT = {
+  fr: {
+    h1: "Firmware pour le clavier M-VAVE SMK-37",
+    lead: "Clipper Pro : le synthétiseur Clipper sur le SMK-37. 23 moteurs, 407 sons, HYBRID (3 oscillateurs, 2 filtres, une matrice), arpégiateur, séquenceur pas à pas — avec 37 touches dynamiques, 16 pads RGB (notes et sons), 4 faders (macros, enveloppe, timbre, mix), les molettes, la pédale de sustain et une sortie MIDI TRS.",
+    t1: "touches dynamiques, + 10 notes", t2: "pads RGB : notes, sons, pas", t3: "faders : macros, ADSR, timbre, mix", t4: "USB et TRS, molettes, pédale",
+    before: "Avant d'installer",
+    b1: "Branchez le clavier directement à l'ordinateur avec un câble USB de données. Chrome ou Edge.",
+    b2: "Fermez les autres applications et onglets qui utilisent le MIDI (DAW, éditeurs, M-UPGRADE).",
+    b3: "Sauvegarde conseillée : une copie complète de la flash (1 Mo) avant la première installation (voir CLIPPER-PRO.md, Sécurité). Le firmware n'écrit jamais l'étalonnage de l'usine ni la zone d'origine.",
+    modelL: "Modèle", auto: "Automatique (recommandé)",
+    risk: "J'ai compris : firmware non officiel, sans garantie, installé à mes risques. Je ne débranche pas le câble pendant l'écriture.",
+    install: "Installer Clipper Pro",
+    editor: "Éditeur (sons, HYBRID, séquenceur, sauvegardes)",
+    backT: "Revenir au firmware M-VAVE",
+    back: "Sauvegardez d'abord vos sons avec l'éditeur (onglet Backup). Puis installez le firmware officiel de votre modèle avec M-UPGRADE, l'outil officiel de M-VAVE. Clipper Pro ne touche pas à l'étalonnage : le clavier revient comme avant.",
+    rescueT: "Si quelque chose tourne mal",
+    rescue: "Si l'écriture s'arrête : rebranchez le câble et appuyez de nouveau sur Installer — le clavier reste en mode mise à jour et l'écriture reprend. Si Clipper Pro ne démarre pas : maintenez OCTAVE− à l'allumage (CLIPPER PRO USB RESCUE) puis installez à nouveau. Sous Windows, si ça reste bloqué à « Passage en mode mise à jour » : fermez complètement le navigateur, débranchez / rebranchez le clavier et lancez INSTALLER-USB-PRO.bat (Windows laisse le port MIDI au navigateur pendant le redémarrage du clavier).",
+    other2: "Clavier sous le firmware « Sloop SMK » de ChanceTheMaker (identité SMK-37_9xx) ? Il n'accepte que ses propres paquets : revenez d'abord au firmware M-VAVE (sa page de restauration ou M-UPGRADE), puis installez Clipper Pro.",
+    nomidi: "Ce navigateur ne peut pas le faire. Ouvrez la page dans Chrome ou Edge.", loadfail: "Chargement impossible : ",
+    ready: "Prêt : Clipper Pro ", start: "Démarrage", verify: "Vérification", loader: "Passage en mode mise à jour", write: "Écriture",
+    waitota: "Le clavier redémarre en mode mise à jour (ne rien débrancher)… s : ", noreq: "Le mode mise à jour ne demande rien encore… s : ", backwait: "Redémarrage… s : ",
+    reboot: "Redémarrage", done: "Terminé : le clavier tourne ", stopped: "Arrêté. Rebranchez le câble USB et appuyez de nouveau sur Installer.",
+    error: "Erreur : ", needRisk: "Cochez d'abord la case ci-dessus.",
+    denied: "L'accès MIDI (SysEx) a été refusé. Autorisez le MIDI dans les paramètres du site (barre d'adresse) et réessayez.",
+    notfound: "Clavier introuvable. Vérifiez le câble USB (un câble de données), fermez les autres applications MIDI, et réessayez.",
+    other: "Ce clavier tourne sous un firmware SMK de ChanceTheMaker (Felucca SMK, Sloop SMK, Melodee SMK, Doom), qui n'accepte que ses propres paquets. Rien n'a été écrit. Revenez d'abord au firmware M-VAVE, puis installez Clipper Pro.",
+    fm1: "L'appareil branché est un FM-1. Clipper Pro est pour le SMK-37 ; pour le FM-1, utilisez Clipper (isod89.github.io/clipper-fm1). Rien n'a été écrit.",
+    nopkg: "Aucun paquet Clipper Pro pour cet appareil : ",
+    model: "Le modèle ne correspond pas : ",
+    lost: "La connexion USB a été perdue. Rebranchez et réessayez.",
+    noloader: "Le clavier en mode mise à jour est introuvable par Chrome. N'éteignez pas le clavier : fermez Chrome complètement (toutes les fenêtres), rouvrez cette page et appuyez de nouveau sur Installer : ça reprend où ça s'est arrêté.",
+    noreturn: "Le clavier n'est pas revenu. Éteignez-le et rallumez-le.",
+    mismatch: "Écrit, mais le clavier annonce une autre version : ",
+    foreign: "Le clavier est en mode mise à jour d'un autre firmware. Terminez cette mise à jour avec son propre outil (M-UPGRADE), puis réessayez : ",
+    oldstock: "Ce clavier a un firmware M-VAVE plus ancien que V016 : mettez-le d'abord à jour en V016 avec M-UPGRADE. Rien n'a été envoyé : ",
+    timeout: "La vérification du paquet par le clavier n'a pas fini à temps : rien n'a été écrit. Éteignez-le et rallumez-le, puis réessayez.",
+    norequest: "Le mode mise à jour est apparu mais n'a rien demandé : rien n'a été écrit. Rebranchez le câble et réessayez.",
+    toomany: "Le clavier redemandait sans fin : arrêté. Rebranchez le câble et réessayez.",
+    badreq: "Le clavier a demandé des données hors du paquet : arrêté. Rechargez la page et réessayez : ",
+    fm1confirm: "Ce paquet est pour le FM-1 : rien n'a été écrit.",
+    fm1pkg: "Ce paquet est pour le FM-1 : rien n'a été écrit.", board: "Ce paquet n'est pas pour cette carte : rien n'a été écrit.",
+    badpkg: "Le fichier à installer est endommagé. Rechargez la page.",
+    leave: "Écriture en cours. Ne fermez pas la page.",
+    device: "Appareil : ", pkgFor: " → paquet ",
+    license: "GPL-3.0, sans garantie. Source :",
+  },
+  en: {
+    h1: "Firmware for the M-VAVE SMK-37 keyboard",
+    lead: "Clipper Pro: the Clipper synthesizer on the SMK-37. 23 engines, 407 sounds, HYBRID (three oscillators, two filters, a matrix), an arpeggiator, a step sequencer — with 37 velocity keys, 16 RGB pads (notes and sounds), 4 faders (macros, envelope, tone, mix), the wheels, a sustain pedal and a TRS MIDI out.",
+    t1: "velocity keys, + 10 notes", t2: "RGB pads: notes, sounds, steps", t3: "faders: macros, ADSR, tone, mix", t4: "USB and TRS, wheels, pedal",
+    before: "Before you install",
+    b1: "Connect the keyboard straight to the computer with a USB data cable. Chrome or Edge.",
+    b2: "Close the other apps and tabs that use MIDI (DAWs, editors, M-UPGRADE).",
+    b3: "Recommended: a full 1 MiB flash backup before the first install (CLIPPER-PRO.md, Safety). The firmware never writes the factory calibration or the stock area.",
+    modelL: "Model", auto: "Automatic (recommended)",
+    risk: "I understand: unofficial firmware, no warranty, installed at my own risk. I will not unplug the cable while it writes.",
+    install: "Install Clipper Pro",
+    editor: "Editor (sounds, HYBRID, sequencer, backups)",
+    backT: "Back to the M-VAVE firmware",
+    back: "First back up your sounds with the editor (Backup tab). Then install your model's official firmware with M-UPGRADE, M-VAVE's own updater. Clipper Pro never touches the calibration: the keyboard comes back as it was.",
+    rescueT: "If something goes wrong",
+    rescue: "If the write stops: replug the cable and press Install again — the keyboard stays in update mode and the write resumes. If Clipper Pro does not start: hold OCTAVE− while switching on (CLIPPER PRO USB RESCUE), then install again. On Windows, if it stays at “Switching to update mode”: close the browser completely, replug the keyboard and run INSTALLER-USB-PRO.bat (Windows leaves the MIDI port with the browser while the keyboard restarts).",
+    other2: "Keyboard running ChanceTheMaker's “Sloop SMK” (identity SMK-37_9xx)? It takes only its own packages: go back to the M-VAVE firmware first (its restore page or M-UPGRADE), then install Clipper Pro.",
+    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+    ready: "Ready: Clipper Pro ", start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    waitota: "The keyboard restarts into update mode (unplug nothing)… s: ", noreq: "The update mode has not asked for anything yet… s: ", backwait: "Restarting… s: ",
+    reboot: "Restarting", done: "Done: the keyboard runs ", stopped: "Stopped. Replug the USB cable and press Install again.",
+    error: "Error: ", needRisk: "Tick the box above first.",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and try again.",
+    notfound: "Keyboard not found. Check the USB cable (a data cable), close other apps that use MIDI, and try again.",
+    other: "This keyboard runs one of ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom), which take only their own packages. Nothing was written. Go back to the M-VAVE firmware first, then install Clipper Pro.",
+    fm1: "The connected device is an FM-1. Clipper Pro is for the SMK-37; for the FM-1 use Clipper (isod89.github.io/clipper-fm1). Nothing was written.",
+    nopkg: "No Clipper Pro package for this device: ",
+    model: "The model does not match: ",
+    lost: "The USB connection was lost. Replug it and try again.",
+    noloader: "Chrome does not see the keyboard in update mode. Do not switch the keyboard off: close Chrome completely (every window), open this page again and press Install again: it goes on where it stopped.",
+    noreturn: "The keyboard did not come back. Switch it off and on.",
+    mismatch: "Written, but the keyboard reports another version: ",
+    foreign: "The keyboard is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then try again: ",
+    oldstock: "This keyboard runs an M-VAVE firmware older than V016: update it to V016 with M-UPGRADE first. Nothing was sent: ",
+    timeout: "The keyboard's check of the package did not finish in time: nothing was written. Switch it off and on, then try again.",
+    norequest: "The update mode appeared but asked for nothing: nothing was written. Replug the cable and try again.",
+    toomany: "The keyboard kept asking: stopped. Replug the cable and try again.",
+    badreq: "The keyboard asked for data outside the package: stopped. Reload the page and try again: ",
+    fm1confirm: "This package is for the FM-1: nothing was written.",
+    fm1pkg: "This package is for the FM-1: nothing was written.", board: "This package is not for this board: nothing was written.",
+    badpkg: "The file to install is damaged. Reload the page.",
+    leave: "Writing. Do not close the page.",
+    device: "Device: ", pkgFor: " → package ",
+    license: "GPL-3.0, no warranty. Source:",
+  },
+  ja: {
+    h1: "M-VAVE SMK-37 キーボード用ファームウェア",
+    lead: "Clipper Pro：SMK-37 で動く Clipper シンセサイザー。23 エンジン、407 音色、HYBRID（オシレーター 3、フィルター 2、マトリクス）、アルペジエーター、ステップシーケンサー。ベロシティ付き 37 鍵、RGB パッド 16（ノートと音色）、フェーダー 4（マクロ・エンベロープ・音色・ミックス）、ホイール、サスティンペダル、TRS MIDI 出力。",
+    t1: "ベロシティ鍵盤、＋10 ノート", t2: "RGB パッド：ノート・音色・ステップ", t3: "フェーダー：マクロ・ADSR・音色・ミックス", t4: "USB と TRS、ホイール、ペダル",
+    before: "インストールの前に",
+    b1: "キーボードを USB データケーブルでパソコンに直接つないでください。Chrome か Edge。",
+    b2: "MIDI を使う他のアプリやタブ（DAW、エディタ、M-UPGRADE）を閉じてください。",
+    b3: "初回の前に 1 MiB のフラッシュ全体のバックアップをおすすめします（CLIPPER-PRO.md、安全）。このファームウェアは工場のキャリブレーションや純正領域を書き換えません。",
+    modelL: "モデル", auto: "自動（おすすめ）",
+    risk: "非公式・無保証のファームウェアを自己責任で入れることを理解しました。書き込み中はケーブルを抜きません。",
+    install: "Clipper Pro をインストール",
+    editor: "エディタ（音色、HYBRID、シーケンサー、バックアップ）",
+    backT: "M-VAVE のファームウェアに戻す",
+    back: "まずエディタで音色をバックアップ（Backup タブ）。そのあと M-VAVE 公式のアップデーター M-UPGRADE でモデルの公式ファームウェアを入れてください。キャリブレーションはそのままです。",
+    rescueT: "うまくいかないとき",
+    rescue: "書き込みが止まったら：ケーブルを挿し直して、もう一度インストールを押してください（書き込みモードのまま再開します）。起動しないとき：OCTAVE− を押しながら電源を入れ（CLIPPER PRO USB RESCUE）、もう一度インストール。 Windows で「書き込みモードに切り替え中」のまま止まるとき：ブラウザを完全に閉じ、キーボードを挿し直して INSTALLER-USB-PRO.bat を実行してください。",
+    other2: "ChanceTheMaker の「Sloop SMK」（SMK-37_9xx）が入っている場合：その専用パッケージしか受け付けません。先に M-VAVE のファームウェアに戻してから Clipper Pro を入れてください。",
+    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
+    ready: "準備完了：Clipper Pro ", start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
+    waitota: "書き込みモードで再起動中（抜かないで）… 秒: ", noreq: "書き込みモードからの要求待ち… 秒: ", backwait: "再起動中… 秒: ",
+    reboot: "再起動中", done: "完了：", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
+    error: "エラー: ", needRisk: "先に上のチェックを入れてください。",
+    denied: "MIDI（SysEx）の使用が許可されませんでした。サイト設定で MIDI を許可して、もう一度押してください。",
+    notfound: "キーボードが見つかりません。USB ケーブルを確かめ、MIDI を使う他のアプリを閉じてから、もう一度押してください。",
+    other: "このキーボードは ChanceTheMaker の SMK ファームウェアで動いています。専用パッケージしか受け付けないため、何も書き込んでいません。先に M-VAVE のファームウェアに戻してください。",
+    fm1: "接続されているのは FM-1 です。Clipper Pro は SMK-37 用です。FM-1 には Clipper（isod89.github.io/clipper-fm1）を。何も書き込んでいません。",
+    nopkg: "この機器用の Clipper Pro パッケージがありません: ",
+    model: "モデルが合いません: ",
+    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
+    noloader: "Chrome から書き込みモードのキーボードが見えません。電源は切らずに、Chrome を完全に閉じてこのページを開き直し、もう一度押してください（続きから再開します）。",
+    noreturn: "キーボードが戻ってきません。電源を入れ直してください。",
+    mismatch: "書き込みは終わりましたが、別のバージョンを報告しています: ",
+    foreign: "キーボードは別のファームウェアの書き込みモードです。そのアップデーター（M-UPGRADE）で終えてから、もう一度: ",
+    oldstock: "このキーボードの M-VAVE ファームウェアは V016 より古いです。先に M-UPGRADE で V016 に更新してください。何も送っていません: ",
+    timeout: "キーボードのパッケージ確認が時間内に終わりませんでした。何も書き込んでいません。電源を入れ直してもう一度。",
+    norequest: "書き込みモードになりましたが要求がありません。何も書き込んでいません。挿し直してもう一度。",
+    toomany: "キーボードが要求を繰り返しました。止めました。挿し直してもう一度。",
+    badreq: "キーボードがパッケージ外のデータを要求しました。止めました。再読み込みしてもう一度: ",
+    fm1confirm: "これは FM-1 用のパッケージです。何も書き込んでいません。",
+    fm1pkg: "これは FM-1 用のパッケージです。何も書き込んでいません。", board: "このボード用のパッケージではありません。何も書き込んでいません。",
+    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
+    leave: "書き込み中です。ページを閉じないでください。",
+    device: "機器: ", pkgFor: " → パッケージ ",
+    license: "GPL-3.0、無保証。ソース:",
+  },
+};
+const pickLang = () => { const l = (navigator.language || "en").toLowerCase(); return l.startsWith("fr") ? "fr" : l.startsWith("ja") ? "ja" : "en"; };
+let lang = pickLang();
+try { lang = localStorage.getItem("clipper-pro-lang") || lang; } catch (_) {}
+const t = (k) => (TEXT[lang] && TEXT[lang][k]) ?? TEXT.en[k] ?? k;
+let lastKey = null, lastArg = "", lastCls = "";
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  document.querySelectorAll(".lang").forEach((b) => b.setAttribute("aria-current", String(b.dataset.l === lang)));
+  if (lastKey) setStatus(t(lastKey) + lastArg, lastCls);
+}
+document.querySelectorAll(".lang").forEach((b) => b.addEventListener("click", () => {
+  lang = b.dataset.l;
+  try { localStorage.setItem("clipper-pro-lang", lang); } catch (_) {}
+  applyLang();
+}));
+applyLang();
+function setStatus(txt, cls = "") { $("status").textContent = txt; $("status").className = cls; }
+const sayK = (k, arg = "", cls = "") => { lastKey = k; lastArg = arg; lastCls = cls; setStatus(t(k) + arg, cls); };
+const log = (s) => { $("log").textContent += s + "\n"; $("log").scrollTop = 1e9; };
+const meta = /*META*/;   // { version, pkgs: [{ product, pkg, sha256 }] }: one package per model
+const images = new Map();                          // product -> logical image
+let writing = false;
+const lockAll = (on) => {
+  writing = on;
+  $("go").disabled = on || !images.size;
+  document.querySelectorAll("input").forEach((i) => { i.disabled = on; });
+};
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+(async () => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi", "", "bad"); return; }
+  try {
+    /* never the browser's old copy: no-cache asks the server first, a mismatch is fetched once more past the cache;
+       a package whose SHA-256 or identity is not the one this page was made with is never offered */
+    const sha = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const check = self.crypto && crypto.subtle;
+    for (const p of meta.pkgs) {
+      const get = async (cache) => {
+        const r = await fetch(p.pkg, { cache });
+        if (!r.ok) throw new Error(`${p.pkg}: HTTP ${r.status}`);
+        return new Uint8Array(await r.arrayBuffer());
+      };
+      let pkg = await get("no-cache");
+      if (check && (await sha(pkg)) !== p.sha256) pkg = await get("reload");
+      if (productOf(pkg) !== p.product) { sayK("badpkg", ` (${p.product})`, "bad"); return; }
+      if (check) {
+        const h = await sha(pkg);
+        if (h !== p.sha256) { sayK("badpkg", ` (${p.product})`, "bad"); log(`${p.product}: sha256 ${h}, expected ${p.sha256}`); return; }
+      }
+      images.set(p.product, logicalImage(pkg));
+    }
+    sayK("ready", `${meta.version} (${[...images.keys()].map((k) => k.split("_")[0]).join(", ")})`);
+    lockAll(writing);
+  } catch (e) { sayK("loadfail", e.message, "bad"); }
+})();
+
+let total = 74 + 1256;                             /* reads: step 1, step 2 (head + the SMK-37's app area) */
+const step = (k, a) => {
+  log(`${k} ${a ?? ""}`);
+  if (k === "start") sayK("start");
+  if (k === "verify") { sayK("verify"); $("bar").value = Math.min(100, (a / total) * 100); }
+  if (k === "loader") sayK("loader");
+  if (k === "write") { sayK("write"); $("bar").value = Math.min(100, ((74 + a) / total) * 100); }
+  if (k === "wait") sayK("waitota", a);
+  if (k === "noreq") sayK("noreq", a);
+  if (k === "reboot") sayK("reboot");
+  if (k === "back") sayK("backwait", a);
+  if (k === "done") { $("bar").value = 100; sayK("done", a || "", "good"); }
+};
+const failed = (e) => {
+  if (e && e.code && TEXT.en[e.code]) sayK(e.code, e.code === "other" || e.code === "fm1" ? "" : e.detail || "", "bad");
+  else sayK("error", e && e.message, "bad");
+  log(String(e && e.stack || e));
+};
+const pfail = (code, detail = "") => { const e = new Error(code); e.code = code; e.detail = detail; return e; };
+const model = () => document.querySelector('input[name="model"]:checked').value;
+/* the package for this device: by its identity (Automatic), or the model ticked (another model of the same keyboard
+   only: install() and resume() refuse an FM-1 or another device whatever is ticked) */
+function choose(idText) {
+  if (OTHER_SMK({ text: idText })) throw pfail("other");
+  const dm = idText.split("_")[0].replace(/^ota-/i, "");
+  if (/^FM-1$/i.test(dm)) throw pfail("fm1");
+  const products = [...images.keys()];
+  if (model() !== "auto") {
+    const p = products.find((x) => x.split("_")[0] === model());
+    if (!p) throw pfail("nopkg", model());
+    return { product: p, anyModel: true };
+  }
+  const c = pickPackage(idText, products);
+  if (!c) throw pfail("nopkg", idText);
+  return c;
+}
+
+let midi = null;
+$("go").addEventListener("click", async () => {
+  if (writing) return;
+  if (!$("risk").checked) { sayK("needRisk", "", "bad"); return; }
+  lockAll(true);
+  $("bar").value = 0;
+  /* one MIDI access for the page's whole life (as the reference installer): a new one per click leaves the ports of
+     the old one to the garbage collector, and Windows' Chrome then sees a port it cannot open */
+  try { midi = midi || await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied", "", "bad"); lockAll(false); return; }
+  try {
+    const up = new Updater(midi, log);
+    /* the keyboard on its named port, running or left in update mode; a loader under a generic name: looked for too */
+    const dev = (await up.find(null)) || (await up.find((id) => /^ota-/i.test(id.model), true));
+    const ota = dev && /^ota-/i.test(dev.id.model) ? dev : null;   /* left in update mode: the write resumes */
+    if (!dev) throw pfail("notfound", up.seen());
+    dev.link.close();
+    const c = choose(dev.id.text);
+    const image = images.get(c.product);
+    total = 74 + Math.ceil(image.length / 512);
+    $("device").textContent = t("device") + dev.id.text + t("pkgFor") + c.product;
+    if (ota) {                                     /* the write finished, then the keyboard is checked as install() does */
+      if (!(await up.resume(image, step, { package: c.product, anyModel: c.anyModel, verify: true }))) throw pfail("stopped");
+    } else await up.install(image, c.product, step, c.anyModel, { refuseOldStock: true });
+  } catch (e) { failed(e); }
+  lockAll(false);
+});
+</script>
+</body>
+</html>

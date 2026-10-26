@@ -9,7 +9,8 @@
  *   D MIX     CHORUS, DELAY, REVERB sends (CC 93, 94, 91), LEVEL (CC 7)
  * A fader sets its value as the CC from a MIDI controller does (seq.c midi_cc: 0..127 over the range), on the sound being
  * played; with GLO > MIDI 2 > SEND CC the move goes out as that CC too (seq.c cc_out_knob). A fader takes over only
- * once it moves (also after a bank change): nothing jumps. After genkigenki's FADER BANK screen (SLOOP's SMK-37 layer) */
+ * once it moves (also after a bank change): nothing jumps. A move brings the screen up (the value it set), for FB_SHOW_MS.
+ * After genkigenki's FADER BANK screen (SLOOP's SMK-37 layer) */
 #define FB_N 4u
 static uint8_t smk_fbank, smk_fbank_new;           /* the bank (main.c smk_faders) */
 static const char *const FB_NAME[FB_N] = {"MACRO", "ENV", "TONE", "MIX"};
@@ -87,6 +88,8 @@ static void fb_apply(uint32_t b, uint32_t i, uint32_t v)
         midi_cc(t, cc, v);
     if (*vp != old) {
         cc_out_knob(vp, old);                      /* (GLO > MIDI 2 > SEND CC) */
+        if (!pick_shown())                         /* the screen shows what moved (not over SOUNDS, which asks for it) */
+            fb_open = 1, fb_t = fm1_ms;
         ui.force = 1;
     }
 }

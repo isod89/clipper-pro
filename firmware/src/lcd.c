@@ -179,6 +179,17 @@ static void padled_set(uint32_t pad, uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
+static uint8_t padled_dim;                      /* Clipper Pro: HOME menu > LIGHTS > PAD LIGHTS: 0 HIGH, 1 MID (1/2),
+                                                 * 2 LOW (1/4); a lit colour never dims to off (after SLOOP Pro) */
+static void padled_dim_set(uint32_t d)
+{
+    d = d > 2u ? 2u : d;
+    if (d != padled_dim) {
+        padled_dim = (uint8_t)d;
+        padled_dirty = 1;
+    }
+}
+
 static void padled_flush(void)
 {
     uint32_t p, i;
@@ -187,8 +198,17 @@ static void padled_flush(void)
     padled_dirty = 0;
     for (p = 0; p < PADLED_N; p++) {
         uint8_t *o = padled_buf + PADLED_LATCH + PADLED_SLOT[p] * 24u;
+        uint32_t c = padled_rgb[p], k;
+        if (padled_dim) {                           /* (PAD LIGHTS: each of G R B scaled, a lit one stays at least 1) */
+            uint32_t d = 0;
+            for (k = 0; k < 24u; k += 8u) {
+                uint32_t v = (c >> k) & 255u;
+                d |= (v ? ((v >> padled_dim) ? v >> padled_dim : 1u) : 0u) << k;
+            }
+            c = d;
+        }
         for (i = 0; i < 24u; i++)
-            o[i] = (padled_rgb[p] >> (23u - i)) & 1u ? 0xF0u : 0xC0u;
+            o[i] = (c >> (23u - i)) & 1u ? 0xF0u : 0xC0u;
     }
     lcd_sync();
     fm1_padled_send(padled_buf, sizeof padled_buf);

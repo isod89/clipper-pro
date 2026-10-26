@@ -3,18 +3,20 @@
  * Clipper Pro: Copyright (C) 2026 isod89 */
 /* Clipper Pro: the SOUNDS on the pads. The 16 pads (and the screen, 8 x 2) are the sounds of one kind, in the PRESETS
  * list's order (ui.c: the favourites, then BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, then the user presets), 16 a
- * page. A pad loads its sound (as PRESETS does) and plays a short preview; < > step the pages. KNOB BANK pins it open;
- * a PRESETS (K4) turn opens it for PICK_MS. Pad hits never reach the notes while it is up (smk_input.h smk_pad_pick).
- * After genkigenki's pad picker in SLOOP's SMK-37 layer. */
-#define PICK_MS 1500u
+ * page. A pad loads its sound (as PRESETS does) and plays a short preview; < > step the pages. KNOB BANK opens and
+ * closes it (its LED lit while it is up), PATCH closes it. Pad hits never reach the notes while it is up (smk_input.h
+ * smk_pad_pick); it is never up unless asked for: a PRESETS (K4) or ALGORITHM (K3) turn browses the sounds and the pads
+ * keep playing, KNOB BANK flashes on each detent (the sounds are there), and an open SOUNDS follows the sound to its
+ * page. After genkigenki's pad picker in SLOOP's SMK-37 layer. */
 enum { PK_USER = 8, PK_FAV = 9 };
 static const char *const PICK_KIND[10] = {"BASS", "KEYS", "ORGN", "PAD", "LEAD", "PLCK", "STAB", "FX", "USER", "FAV"};
 static const uint8_t PICK_RGB[10][3] = {           /* a colour a kind (pads and screen) */
     {255, 40, 40},  {255, 140, 0},  {255, 220, 0}, {40, 220, 80},  {0, 200, 255},
     {60, 80, 255},  {170, 60, 255}, {255, 60, 170}, {220, 210, 170}, {255, 190, 60}};
-static uint8_t pick_pin, pick_tmp;
+static uint8_t pick_pin;
 static uint16_t pick_page;
-static uint32_t pick_t, pick_frame;                /* last touch (ms); the frame drawn last */
+static uint32_t pick_frame;                        /* the frame drawn last */
+static uint16_t pick_seen = 0xFFFFu;               /* the sound the page was last set for */
 static uint32_t pick_k4_until;                     /* KNOB BANK lit until (ms): a PRESETS detent */
 typedef struct { uint16_t first, len, sub, nsub, kind; } pick_pg_t;
 
@@ -106,25 +108,33 @@ static uint32_t pick_info(pick_pg_t *pg)          /* the page shown */
 
 static int pick_shown(void)
 {
-    return (pick_pin || (pick_tmp && fm1_ms - pick_t < PICK_MS)) && !ui.menu && ui.layer == LY_PLAY && !ui.hold_kind;
+    return pick_pin && !ui.menu && ui.layer == LY_PLAY && !ui.hold_kind;
 }
 static void pick_close(void)
 {
-    pick_pin = pick_tmp = 0;
+    pick_pin = 0;
 }
 static void pick_pin_toggle(void)                  /* KNOB BANK */
 {
     pick_pin = !pick_pin && !ui.menu;
-    pick_tmp = 0;
     if (pick_pin)
         pick_home();
 }
-static void pick_open_tmp(void)                    /* a PRESETS turn: the current sound's page */
+static void pick_hint(void)                        /* a PRESETS / ALGORITHM detent: KNOB BANK flashes */
 {
-    pick_tmp = 1;
-    pick_t = fm1_ms;
     pick_k4_until = fm1_ms + 150u;
-    pick_home();
+}
+static void pick_follow(void)                      /* (every frame) the sound changed (K3, K4, MIDI, the editor): an open
+                                                    * SOUNDS goes to its page */
+{
+    uint32_t cur = pick_cur();
+    if (cur == pick_seen)
+        return;
+    pick_seen = (uint16_t)cur;
+    if (pick_pin) {
+        pick_home();
+        ui.force = 1;
+    }
 }
 static void pick_turn(int32_t d)                   /* < > */
 {
@@ -132,14 +142,12 @@ static void pick_turn(int32_t d)                   /* < > */
     uint32_t np = pick_info(&pg);
     if (np)
         pick_page = (uint16_t)((pick_page + np + (uint32_t)(d > 0 ? 1 : (int32_t)np - 1)) % np);
-    pick_t = fm1_ms;
     ui.force = 1;
 }
 static void pick_select(uint32_t w)                /* cell w (0..15) of the page: hardware pad w, reading order */
 {
     pick_pg_t pg;
     uint32_t n;
-    pick_t = fm1_ms;
     if (!pick_info(&pg) || w >= pg.len)
         return;
     n = pg.first + w;

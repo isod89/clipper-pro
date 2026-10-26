@@ -21,12 +21,13 @@ La référence complète : [CLIPPER-PRO.md](CLIPPER-PRO.md).
 | K1 | volume général |
 | K2 | SELECT : les pages, le menu |
 | K3 | ALGORITHM : le genre de son (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, USER) |
-| K4 | PRESETS : les sons (sur HOME : les SONS s'affichent un instant sur les pads) |
+| K4 | PRESETS : les sons (les pads continuent de jouer ; KNOB BANK clignote : les SONS sont là) |
 | K5 à K8 | les 4 molettes de l'écran (sur HOME : les réglages principaux du son) |
 
 ## Les faders (FADER BANK)
 
 FADER BANK affiche l'écran des banques ; appuyé encore, ou `<` `>`, ou K2 : la banque suivante. PATCH le ferme.
+Bouger un fader affiche aussi l'écran, avec la valeur réglée.
 Un fader ne prend la main qu'une fois bougé : rien ne saute.
 
 | Banque | Fader 1 | Fader 2 | Fader 3 | Fader 4 |
@@ -48,13 +49,17 @@ Elles sortent aussi en MIDI (USB et prise TRS), comme les touches.
 
 ## Les pads
 
-- **NOTES** (au départ) : les pads jouent le son. Rangée du bas F3 à C4, rangée du haut D4 à G5, avec la nuance.
+- **NOTES** (au départ) : les pads jouent le son. Rangée du bas F3 à F4, rangée du haut G4 à G5, avec la nuance.
   Couleur du genre de son ; plus vifs quand la note sonne, les toniques à moitié. Avec SEL > QNT sur WHITE, les pads
   suivent la gamme (pas de fausse note).
-- **SONS** : **KNOB BANK** (allumé), ou un cran de K4 sur HOME. Les pads et l'écran montrent 16 sons d'un genre, chaque
+- **SONS** : **KNOB BANK** (allumé ; seul KNOB BANK change les pads : K3 et K4 parcourent les sons pendant que les pads
+  jouent, et les SONS ouverts suivent le son jusqu'à sa page). Les pads et l'écran montrent 16 sons d'un genre, chaque
   genre sa couleur, le son actuel en blanc. Un pad charge le son et le fait entendre ; `<` `>` les pages ; KNOB BANK ou
   PATCH referme.
-- Un bouton de couche tenu : SEQ = les 16 pas (rangée du haut 1 à 8), SEL = un petit piano, FX = les effets punch-in.
+- Un bouton de couche tenu : SEQ = les 16 pas (rangée du haut 1 à 8), SCALE (SEL) = un petit piano (un pad choisit la
+  tonalité), FX = les 16 effets punch-in, GLOBE (GLO) = FILL (9), FILL à la mesure (10), TAP tempo (16), BT (SAVE) = les
+  parties A à D (1–4 jouer, 5–8 enregistrer, 13 LOOP / SONG, 14 SONG REC, 16 la page SONG). Les cases qui font quelque
+  chose sont allumées faiblement, celle qui est active fort.
 
 ## Les boutons
 
@@ -78,6 +83,11 @@ Elles sortent aussi en MIDI (USB et prise TRS), comme les touches.
 
 À l'allumage : **OCTAVE−** tenu = CLIPPER PRO USB RESCUE ; **OCTAVE− + OCTAVE+** = calibration des boutons.
 OCTAVE− + OCTAVE+ tenus 5 s à l'arrêt = mode UBOOT (sauvegarde complète de la flash).
+
+## Le menu (PATCH maintenu)
+
+Comme Clipper, avec sur le SMK-37 : **LIGHTS > PAD LIGHTS** = la luminosité des pads (HIGH, MID, LOW). Les réglages
+de l'éclairage des touches du FM-1 (KEYS) n'existent pas ici : le SMK-37 n'a pas de touches lumineuses.
 
 ## Mémoire
 

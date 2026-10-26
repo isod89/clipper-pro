@@ -156,6 +156,10 @@ static uint32_t keys_lit(void)
         if (play_led())
             m |= 1u << key_of_white(15);
         return m;
+#if BOARD_SMK37
+    case LY_SONG:                                  /* (the pads) the section playing */
+        return live_sec >= 0 && live_sec < 4 && song.playing ? 1u << key_of_white((uint32_t)live_sec) : 0u;
+#endif
     case LY_ERASE:                                 /* the sounds the pattern holds (NOTES: dim, the hits lit) */
         return (lights_notes ? 0u : erase_lanes(t)) | fm1_in.notes | (lights_notes ? keys_sounding(t) : 0u);
     default:                                       /* playing, ARP roll, SAVE song, every page and the menu */
@@ -224,6 +228,23 @@ static uint32_t keys_guide(void)
         }
         return m;
     }
+    {                                              /* the layers' tiles on the pads: every tile that does something
+                                                    * glows (the FX effects, the mix's FILL / FILL BAR / TAP, the song's
+                                                    * stored sections, STORE A..D, LOOP / SONG, SONG REC, the SONG page);
+                                                    * the steps and the keys: the four row starts, as on the FM-1 */
+        uint32_t i, m = 0, live = 0;
+        if (ui.layer == LY_FX)
+            live = 0xFFFFu;
+        else if (ui.layer == LY_MIX)
+            live = (CLIPPER_SYNTH ? 0u : 0xFFu) | 1u << 8 | 1u << 9 | 1u << 15;
+        else if (ui.layer == LY_SONG)
+            live = (arrangement_ready() & 0xFu) | 0xF0u | 1u << 12 | 1u << 13 | 1u << 15;
+        for (i = 0; live && i < 16u; i++)
+            if ((live >> i) & 1u)
+                m |= 1u << key_of_white(i);
+        if (live)
+            return m;
+    }
 #endif
     if (ui.layer == LY_PLAY && !is_drum(TSEL))
         return 0u;
@@ -281,6 +302,7 @@ static void ui_leds(void)
     for (c = 0; c < SMK_NLED; c++)                 /* the buttons: on / off (no dim layers) */
         fm1_led[c] = nl[c];
     smk_pad_piano = ui.layer == LY_SCALE;          /* SCALE held: the pads are a little piano (smk_input.h) */
+    padled_dim_set(lights_lvl < 3u ? lights_lvl : 0u);   /* PAD LIGHTS (ui_menu.c padl_lvl) */
     fm1_led[SMK_BTN_FADER_BANK] = fb_shown();      /* FADER BANK lit while its screen is up */
     fm1_led[SMK_BTN_KNOB_BANK] = pick_pin || (int32_t)(fm1_ms - pick_k4_until) < 0;   /* KNOB BANK: SOUNDS pinned, K4 turning */
     smk_pad_pick = (uint16_t)(pick_shown() ? 0xFFFFu : 0u);   /* (the SOUNDS pads: no notes) */
@@ -307,7 +329,7 @@ static void ui_leds(void)
                     padled_set(c, 6, 6, 6);
             }
         } else if (ui.layer == LY_PLAY && !smk_pad_grid) {
-            /* NOTES: the pads are the white keys F3..G5 (bottom row F3..C4, top row D4..G5) and play the sound, as the
+            /* NOTES: the pads are the white keys F3..G5 (bottom row F3..F4, top row G4..G5) and play the sound, as the
              * keys (SEL: QNT WHITE walks the scale from C4). In the colour of the sound's kind: bright while the note
              * sounds or is held, the root's pads half, the others dim, a silent pad dark */
             track_t *t = TSEL;
@@ -1141,6 +1163,7 @@ static void ui_input(void)
     }
     {
         uint32_t h = smk_pick_take(), p;                        /* the pads hit while SOUNDS was up: their sounds */
+        pick_follow();
         for (p = 0; h && p < SMK_NPAD; p++)
             if ((h >> p) & 1u && pick_shown())
                 pick_select(p);                                 /* reading order, as the screen */
@@ -1317,13 +1340,16 @@ static void ui_input(void)
         else if (total)
             preset_go((uint32_t)(((int32_t)cur + s % (int32_t)total + (int32_t)total) % (int32_t)total));
 #if BOARD_SMK37
-        if (ui.home)
-            pick_open_tmp();                            /* Clipper Pro: the SOUNDS on the pads, a moment, at this sound's page */
+        pick_hint();                                    /* Clipper Pro: KNOB BANK flashes (the SOUNDS on the pads) */
 #endif
     }
 #if CLIPPER_SYNTH
-    if ((s = panel_enc(EN_ALGO)) != 0 && (ui.home || cur_page()->graph == GR_BROWSE))
+    if ((s = panel_enc(EN_ALGO)) != 0 && (ui.home || cur_page()->graph == GR_BROWSE)) {
         preset_kind_jump(s);                            /* Clipper: ALGORITHM, the kind of sound (BASS, KEYS, PAD...) */
+#if BOARD_SMK37
+        pick_hint();
+#endif
+    }
 #else
     if ((s = panel_enc(EN_ALGO)) != 0 && !ft_on)     /* ALGORITHM: the selected track, on every page (not in a take) */
         track_select((uint32_t)clamp((int32_t)song.sel + (s > 0 ? 1 : -1), 0, NTRK - 1));

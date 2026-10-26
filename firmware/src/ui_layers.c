@@ -21,6 +21,11 @@
  * GLO keys come to the UI through seq.c lk_q. HOLD: REC held clears the track, SAVE held saves the
  * project (a ring fills; let go before and nothing happens). */
 static const uint8_t LAYER_BTN[LY_COUNT] = {NB, B_FX, B_EDIT, B_ARP, B_SEQ, B_SCL, B_GLO, B_SAVE};
+#if BOARD_SMK37
+#define HOLD_KEY "hold + pad"                     /* (the SMK-37: the tiles are the pads) */
+#else
+#define HOLD_KEY "hold + key"
+#endif
 static const char *const LAYER_NAME[LY_COUNT] = {"", "punch", "erase", "roll", "steps", "key", "mix", "song"};
 static void section_store(uint32_t s);                  /* project.c */
 static void section_load(uint32_t s);
@@ -672,7 +677,7 @@ static void layer_screen_draw(void)
     switch (layer) {
     case LY_FX:                                         /* the 16 punch-in effects */
         col = TE_DRUM;
-        str_cpy(sub, "hold + key", sizeof sub);
+        str_cpy(sub, HOLD_KEY, sizeof sub);
         for (i = 0; i < 16u; i++) {
             static const char *const PSHORT[16] = {"loop 4", "loop 8", "loop16", "loop32", "stutt", "rev", "stop", "half",
                                                    "low", "high", "phone", "crush", "alias", "gate", "echo", "wobble"};

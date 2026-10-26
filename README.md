@@ -26,7 +26,7 @@ what the bigger keyboard brings, made for playing a synthesizer:
 | | |
 |---|---|
 | **37 velocity keys** | the 27 middle keys as Clipper's, velocity from your unit's factory curves; the outer 10 play more notes |
-| **16 RGB pads** | **NOTES**: the sound on the pads, in its kind's colour (QNT WHITE: the scale); **SOUNDS** (KNOB BANK, or a K4 turn): the sounds of a kind on the pads, a tap loads one; the steps and tiles when a layer is held |
+| **16 RGB pads** | **NOTES**: the sound on the pads, in its kind's colour (QNT WHITE: the scale); **SOUNDS** (KNOB BANK): the sounds of a kind on the pads, a tap loads one; the steps and tiles when a layer is held |
 | **4 faders, 4 banks** | A **MACROS** (BRITE, TIMBR, MOTN, SPACE; HYBRID's M1..M4), B **ENV** (ADSR), C **TONE** (cutoff, resonance, LFO rate, glide), D **MIX** (chorus, delay, reverb, level) |
 | **8 knobs** | MASTER, SELECT, ALGORITHM (the kind of sound), PRESETS, and the screen's four dials, as the FM-1's |
 | **Wheels and pedal** | the pitch bend (Clipper's BEND range), the mod wheel (the sound's MW destination, the matrix), a sustain pedal |

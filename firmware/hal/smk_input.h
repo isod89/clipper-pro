@@ -21,7 +21,10 @@
  * latched one tick ago, latches the word shifted during the last tick, starts the next SPI2 DMA (4 bytes,
  * ~3 us) and runs one ADC conversion (read in the next tick). The order is the stock ISR's, so the matrix
  * codes (col << 4 | row) of the spec apply unchanged. A frame = 16 ticks = 1.6 ms: keys, buttons, encoders
- * and LEDs are processed once per frame. Analog: 8 mux addresses x 3 channels = 24 ticks per cycle.
+ * and LEDs are processed once per frame. Analog: one conversion a tick, by the schedule smk_sched (SLOOP Pro, Clipper
+ * Pro): each sweep reads the 16 pads (mux A and B at the 8 addresses: every 1.8 ms, the reference port's 2.4 ms made
+ * faster), the pitch wheel, and one of the other 7 mux C inputs in turn (faders, mod wheel, pedal, battery: every
+ * 12.6 ms): 18 ticks a sweep, 7 sweeps a cycle.
  *
  * Key velocity: the stock two-contact algorithm (T = 10 + frames between contact 1 and contact 2, in the
  * stock's 0.1 ms frames, from the 24 MHz time base here) and its 5-point curves (trimdata at flash 0xC1000,
@@ -140,7 +143,8 @@ static volatile struct {
     int16_t enc_cnt[FM1_NENC];   /* transitions, + = B leads */
     int16_t enc_steps[FM1_NENC];
     uint16_t pad_raw[SMK_NPAD], pad_base[SMK_NPAD], pad_peak[SMK_NPAD];
-    uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKN collecting the peak, 0x80 on */
+    uint16_t pad_rt[SMK_NPAD];   /* the retrigger guard: above the baseline, after a release (decays) */
+    uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKMAX collecting the peak, 0x80 on */
     uint8_t pad_low[SMK_NPAD];
     uint8_t pad_press[SMK_NPAD]; /* pressure 0..127 while on */
     uint16_t fad_acc[4];         /* faders: 0..1023 IIR */
@@ -224,7 +228,24 @@ FM1_INLINE void smk__latch(void)
 }
 
 /* analog slot s (0..23): mux address s / 3, channel {A, B, C}[s % 3] */
-FM1_INLINE uint32_t smk__slot_addr(uint32_t s) { return s / 3u; }
+/* the analog schedule: slot -> channel (0 mux A, 1 mux B, 2 mux C) << 4 | mux address. A sweep: at each address mux A,
+ * then mux B, then mux C when it is the pitch wheel's address (4) or this sweep's turn of the other seven */
+#define SMK_SWEEP 18u
+#define SMK_NSLOT (7u * SMK_SWEEP)
+static uint8_t smk_sched[SMK_NSLOT];
+static void smk__sched_init(void)
+{
+    static const uint8_t OTHER[7] = {0, 1, 2, 3, 5, 6, 7};   /* faders 0..3, mod wheel, pedal, battery */
+    uint32_t sw, a, n = 0;
+    for (sw = 0; sw < 7u; sw++)
+        for (a = 0; a < 8u; a++) {
+            smk_sched[n++] = (uint8_t)(0u << 4 | a);
+            smk_sched[n++] = (uint8_t)(1u << 4 | a);
+            if (a == 4u || a == OTHER[sw])
+                smk_sched[n++] = (uint8_t)(2u << 4 | a);
+        }
+}
+FM1_INLINE uint32_t smk__slot_addr(uint32_t s) { return smk_sched[s % SMK_NSLOT] & 7u; }
 
 /* -------------------------------------------------------------- velocity --- */
 static uint32_t smk_curve(const uint16_t *t, uint32_t x)   /* stock curve: 5 points -> 1..1023 */
@@ -285,6 +306,7 @@ static void fm1_input_init(void)
 {
     uint32_t i;
     smk_trim_defaults();
+    smk__sched_init();
     smk__pin_out(FM1_PA, (1u << 0) | (1u << 1), 0);              /* PA0 /OE low, PA1 latch low */
     smk__pin_out(FM1_PA, (1u << 3) | (1u << 4), 0);              /* SPI2 CLK, DO */
     smk__pin_in_pu(FM1_PA, (1u << 2) | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 9));
@@ -450,9 +472,17 @@ static void fm1__frame(void)
 }
 
 /* ---------------------------------------------------------------- analog --- */
+/* The pads: force sensors, each read every 1.8 ms (smk_sched, smk__analog). A hit starts above the baseline +
+ * SMK_PAD_ON; its velocity is the force's peak through the pad's factory curve. The note goes as soon as the force
+ * falls (the peak has passed: a hard hit, 1.8 ms after the crossing) or after SMK_PAD_PEAKMAX readings (a slow press,
+ * 5.4 ms): never late, never measured on its way up. Released after SMK_PAD_RELN readings in a row under the baseline
+ * + SMK_PAD_OFF: a light hold that wavers does not let go. After a release, the next hit must rise above a guard that
+ * starts at the last one's height and fades by 1/32 a reading (it halves in ~40 ms): the pad's rebound is no second
+ * note, a roll is. (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
 #define SMK_PAD_ON 24u            /* above the baseline: a hit starts */
-#define SMK_PAD_OFF 12u           /* below base + this: released */
-#define SMK_PAD_PEAKN 3u          /* samples (2.4 ms apart) for the peak */
+#define SMK_PAD_OFF 12u           /* below base + this, SMK_PAD_RELN readings in a row: released */
+#define SMK_PAD_PEAKMAX 4u        /* readings from the crossing: the velocity's window (the crossing + 3) */
+#define SMK_PAD_RELN 3u
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
@@ -502,37 +532,45 @@ static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or rele
 
 static void smk__pad(uint32_t p, uint32_t raw)
 {
-    uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p];
+    uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p], rt = fm1_in.pad_rt[p];
     fm1_in.pad_raw[p] = (uint16_t)raw;
     if (st == 0u) {
-        if (raw > base + SMK_PAD_ON) {
+        if (rt)                                             /* the guard after a release fades */
+            fm1_in.pad_rt[p] = (uint16_t)(rt - (rt >> 5 ? rt >> 5 : 1u));
+        if (raw > base + (rt > SMK_PAD_ON ? rt : SMK_PAD_ON)) {
             fm1_in.pad_st[p] = 1;
             fm1_in.pad_peak[p] = (uint16_t)raw;
-        } else if (base > raw) {
-            fm1_in.pad_base[p] = (uint16_t)(base - 1u);     /* the baseline follows (stock) */
-        } else if (base < smk_trim_pad[p][0]) {
-            fm1_in.pad_base[p] = (uint16_t)(base + 2u);
+            fm1_in.pad_rt[p] = 0;
+        } else if (raw <= base + SMK_PAD_ON) {               /* (not a rebound under the guard) */
+            if (base > raw)
+                fm1_in.pad_base[p] = (uint16_t)(base - 1u);  /* the baseline follows (stock) */
+            else if (base < smk_trim_pad[p][0])
+                fm1_in.pad_base[p] = (uint16_t)(base + 2u);
         }
         return;
     }
-    if (st < 0x80u) {                                       /* the peak of the first samples */
-        if (raw > fm1_in.pad_peak[p])
+    if (st < 0x80u) {                                       /* the peak: until the force falls, or the window ends */
+        uint32_t pk = fm1_in.pad_peak[p];
+        if (raw >= pk && st + 1u < SMK_PAD_PEAKMAX) {      /* still rising */
             fm1_in.pad_peak[p] = (uint16_t)raw;
-        if (++st < SMK_PAD_PEAKN) {
-            fm1_in.pad_st[p] = (uint8_t)st;
+            fm1_in.pad_st[p] = (uint8_t)(st + 1u);
             return;
         }
+        if (raw > pk)
+            fm1_in.pad_peak[p] = (uint16_t)(pk = raw);     /* (the window ended still rising) */
         fm1_in.pad_st[p] = 0x80;
         fm1_in.pad_low[p] = 0;
-        smk__padq(p, smk_vel7(smk_curve(smk_trim_pad[p], fm1_in.pad_peak[p])));
+        smk__padq(p, smk_vel7(smk_curve(smk_trim_pad[p], pk)));
         return;
     }
     fm1_in.pad_press[p] = (uint8_t)(raw <= 0x200u ? raw >> 4 : (raw - 0x200u) / 4u + 32u > 127u ? 127u
                                                                       : (raw - 0x200u) / 4u + 32u);
     if (raw < base + SMK_PAD_OFF) {
-        if (++fm1_in.pad_low[p] >= 2u) {
+        if (++fm1_in.pad_low[p] >= SMK_PAD_RELN) {
+            uint32_t pk = fm1_in.pad_peak[p];
             fm1_in.pad_st[p] = 0;
             fm1_in.pad_press[p] = 0;
+            fm1_in.pad_rt[p] = (uint16_t)(pk > base ? pk - base : 0u);   /* the guard: the hit's height */
             smk__padq(p, 0);
         }
     } else {
@@ -542,7 +580,7 @@ static void smk__pad(uint32_t p, uint32_t raw)
 
 static void smk__analog(uint32_t slot, uint32_t raw)
 {
-    uint32_t a = smk__slot_addr(slot), ch = slot % 3u;
+    uint32_t a = smk__slot_addr(slot), ch = smk_sched[slot % SMK_NSLOT] >> 4;
     if (ch == 0u) {
         smk__pad(SMK_PADMUX[a], raw);
     } else if (ch == 1u) {
@@ -554,15 +592,18 @@ static void smk__analog(uint32_t slot, uint32_t raw)
         fm1_in.fad_hist[f][1] = (uint16_t)h0;
         fm1_in.fad_hist[f][0] = (uint16_t)raw;
         m = raw > h0 ? (h0 > h1 ? h0 : raw > h1 ? h1 : raw) : (raw > h1 ? raw : h0 > h1 ? h1 : h0);   /* median */
-        acc += ((int32_t)m * 16 - acc) / 4;                  /* x16 IIR (signed: it falls as well as rises) */
+        acc += ((int32_t)m * 16 - acc) / 2;                  /* x16 IIR (signed: it falls as well as rises; a reading
+                                                              * every 12.6 ms) */
         fm1_in.fad_acc[f] = (uint16_t)acc;
         v = (uint32_t)acc / 16u / 8u;
         if (v > 127u)
             v = 127u;
         if (v > fm1_in.fader[f] + 1u || v + 1u < fm1_in.fader[f] || (v != fm1_in.fader[f] && (v == 0u || v == 127u)))
             fm1_in.fader[f] = (uint8_t)v;                    /* +-1 dead band, the ends reachable */
-    } else if (a < 6u) {
-        fm1_in.wheel[a - 4u] = (uint16_t)(fm1_in.wheel[a - 4u] + ((int32_t)raw - fm1_in.wheel[a - 4u]) / 4);
+    } else if (a == 4u) {                                    /* the pitch wheel: every sweep (1.8 ms) */
+        fm1_in.wheel[0] = (uint16_t)(fm1_in.wheel[0] + ((int32_t)raw - fm1_in.wheel[0]) / 4);
+    } else if (a == 5u) {                                    /* the mod wheel: every 12.6 ms */
+        fm1_in.wheel[1] = (uint16_t)(fm1_in.wheel[1] + ((int32_t)raw - fm1_in.wheel[1]) / 2);
     } else if (a == 6u) {
         fm1_in.pedal = (uint16_t)raw;
     } else {
@@ -607,8 +648,8 @@ static void fm1_input_tick(void)
     smk_col = (uint8_t)next;
     /* the mux address for the slot after this one goes out with the next word */
     {
-        uint32_t s = smk_slot, ns = s + 1u == 24u ? 0u : s + 1u;
-        smk__adc_start(CH[s % 3u]);                          /* this slot: its address was latched now */
+        uint32_t s = smk_slot, ns = s + 1u == SMK_NSLOT ? 0u : s + 1u;
+        smk__adc_start(CH[(smk_sched[s] >> 4) % 3u]);         /* this slot: its address was latched now */
         smk_adc_slot = (uint8_t)s;
         smk_slot = (uint8_t)ns;
         smk_muxw = 0xFFFFFFC7u | smk__slot_addr(ns) << 3;

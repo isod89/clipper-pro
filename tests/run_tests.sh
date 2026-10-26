@@ -92,6 +92,8 @@ $CC -Ifirmware/src -o "$OUT/smk_pedal_test" tests/smk_pedal_test.c
 run "Clipper Pro sustain pedal: polarity learnt at power-on, bounce, an open jack, never stuck" "$OUT/smk_pedal_test"
 $CC -o "$OUT/smk_midi_out_test" tests/smk_midi_out_test.c
 run "SMK-37 TRS MIDI OUT: the bytes, the ring, one byte at a time, no UART: no hang, no note left on" "$OUT/smk_midi_out_test"
+$CC -O2 -w -Ifirmware/hal -o "$OUT/smk_pad_test" tests/smk_pad_test.c -lm
+run "SMK-37 pads: hits at once at their peak, no rebound hits, rolls, steady holds, the same velocity wherever the readings fall" "$OUT/smk_pad_test"
 # Clipper Pro: the SMK-37 build compiles on the host with every warning (the board's own code included), and its
 # wheels, pedal, faders and pads go through the part controls and the CC map a MIDI keyboard uses
 smk_build() {
@@ -328,6 +330,7 @@ run "installer CLI (fm1_install.py) against a simulated FM-1" python3 tests/inst
 
 if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol, samples, packages, update protocol" node web/test_web.mjs
+    run "Clipper Pro installer page: one package per model, resume, refusals, fr / en / ja (make_site --pro)" node web/test_pro.mjs
 else
     echo "== skip web tests (no node)"
 fi

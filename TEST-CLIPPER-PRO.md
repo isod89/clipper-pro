@@ -43,11 +43,11 @@ Vos presets utilisateur et réglages de SLOOP Pro restent (Clipper Pro les parta
 | 1 | Allumer | Logo clipper, badge orange **PRO** en haut à droite, « 1.1 EXPERIMENTAL » dessous |
 | 2 | PATCH maintenu (MENU) → SYSTEM → ABOUT | « CLIPPER » + « PRO » orange, « SMK-37 PORT: GENKIGENKI », la version, 2 CORES ou 1 CORE |
 | 3 | Les 37 touches, doux puis fort | Toutes jouent le son avec la nuance, y compris les 5 graves et les 5 aiguës |
-| 4 | K4 sur HOME, puis K3 | Les sons défilent ; K3 saute au genre suivant (BASS, KEYS…) ; les pads montrent un instant les SONS |
+| 4 | K4 sur HOME, puis K3, en tapant des pads | Les sons défilent ; K3 saute au genre suivant (BASS, KEYS…) ; KNOB BANK clignote à chaque cran ; les pads **jouent toujours** le son (ils ne changent pas de son) |
 | 5 | **KNOB BANK** | SONS : 16 cases de la couleur du genre, son actuel en blanc ; un pad charge le son + une courte note ; `<` `>` changent de page ; KNOB BANK referme |
-| 6 | Les 16 pads (NOTES) | Le son joue ; bas F3–C4, haut D4–G5 ; nuance ; couleur du genre, plus vif quand ça sonne |
+| 6 | Les 16 pads (NOTES) | Le son joue ; bas F3–F4, haut G4–G5 ; nuance ; couleur du genre, plus vif quand ça sonne |
 | 7 | SEL : QNT sur WHITE, une gamme | Les pads suivent la gamme, les toniques plus vives |
-| 8 | **FADER BANK**, faders 1 à 4 (banque A) | Écran FADER BANK ; BRITE, TIMBR, MOTN, SPACE changent le son ; sur un son HYBRID : M1–M4 |
+| 8 | **FADER BANK**, faders 1 à 4 (banque A) ; puis PATCH, et bouger un fader | Écran FADER BANK ; BRITE, TIMBR, MOTN, SPACE changent le son ; sur un son HYBRID : M1–M4 ; un fader bougé ramène l'écran avec sa valeur |
 | 9 | Banque B | ATTACK, DECAY, SUSTAIN, RELEASE à l'oreille (une note longue) |
 | 10 | Banque C | CUTOFF, RESONANCE, vitesse du LFO, GLIDE ; un moteur sans résonance : « - » |
 | 11 | Banque D | envois CHORUS, DELAY, REVERB, LEVEL |
@@ -55,6 +55,8 @@ Vos presets utilisateur et réglages de SLOOP Pro restent (Clipper Pro les parta
 | 13 | Molette MOD | Vibrato (ou ce que fait le son : page MOD > MW) |
 | 14 | Pédale branchée **avant** d'allumer : accord, pédale, lâcher | Les notes tiennent, s'arrêtent au pied levé |
 | 15 | SEQ tenu ; SEQ tapé (NOTES) | Les 16 pas sur les pads (haut 1–8) ; la page NOTES du séquenceur |
+| 15b | GLOBE tenu ; BT tenu ; FX tenu | Pads : seules les cases utiles allumées (GLOBE : 9, 10, 16 ; BT : parties enregistrées, 5–8, 13, 14, 16 ; FX : les 16, et l'écran dit « hold + pad ») |
+| 15c | PATCH maintenu → LIGHTS → PAD LIGHTS | HIGH, MID, LOW changent la luminosité des pads ; KEYS n'apparaît plus |
 | 16 | Synthé externe sur la prise TRS (adaptateur TRS → DIN) | Il joue ce que jouent les touches, les pads, l'arpège |
 | 17 | Un DAW sur USB : touches, molettes, pédale | Notes, pitch bend, CC 1, CC 64 reçus ; GLO > MIDI 2 > SEND CC : les faders envoient leurs CC |
 | 18 | Un son modifié, SAVE > USER, éteindre, rallumer | Le preset est là |

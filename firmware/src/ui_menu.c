@@ -8,7 +8,16 @@
 /* ------------------------------------------------------------ menu --- */
 /* 0.7 (after SLOOP 2.7): SCREEN + KNOB ACCEL, AUDIO + USB RATE (four rows: the fourth takes the help's place), MIDI
  * (CLOCK OUT, MPE), SYS (2ND CORE, CALIBRATION, ABOUT) */
-#if CLIPPER_SYNTH                                  /* Clipper 0.4: MPE (MIDI: OFF or the member channels' bend range) */
+#if CLIPPER_SYNTH && BOARD_SMK37                   /* Clipper Pro: LIGHTS is the pads' (PAD LIGHTS: HIGH, MID, LOW, kept in
+                                                    * the LIGHTS setting), NOTES; no KEYS (no lit keys): out of every section */
+enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
+       MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT, MI_KEYS };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "PAD LIGHTS", "NOTES", "SPEAKER LOWCUT",
+                                              "USB AUDIO", "USB SERIAL", "USB RATE", "STEP ADVANCE", "CLOCK OUT (USB)",
+                                              "MPE (CH 2-16)", "2ND CORE", "HARDWARE CALIBRATION", "ABOUT"};
+static const char *const PADL_NAME[3] = {"HIGH", "MID", "LOW"};
+static uint32_t padl_lvl(void) { return lights_lvl < 3u ? lights_lvl : 0u; }   /* 0 HIGH, 1 MID, 2 LOW */
+#elif CLIPPER_SYNTH                                /* Clipper 0.4: MPE (MIDI: OFF or the member channels' bend range) */
 enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
        MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "LIGHTS", "KEYS", "NOTES", "SPEAKER LOWCUT",
@@ -55,7 +64,11 @@ static const char *mi_value(uint32_t i, uint16_t *c)
     switch (i) {
     case MI_COLOR: return PALETTES[settings.palette].name;
     case MI_ZOOM: return settings.zoom ? "ON" : "OFF";
+#if CLIPPER_SYNTH && BOARD_SMK37
+    case MI_LIGHTS: return PADL_NAME[padl_lvl()];
+#else
     case MI_LIGHTS: return LIGHTS_NAME[lights_lvl % LIGHTS_N];
+#endif
     case MI_KEYS:
         *c = lights_lvl ? C_HI : C_DIM;               /* (needs LIGHTS) */
         return KEYS_NAME[lights_keys % KEYS_N];
@@ -129,7 +142,11 @@ static void draw_menu(void)
 #if FELUCCA_CPU1                                    /* (the host tests include this file without cpu1.c) */
             cv_text(236 - text_w(&FONT_S, cpu1_label()), 119, &FONT_S, cpu1_label(), C_AMB);   /* 2 CORES / 1 CORE */
 #endif
+#if BOARD_SMK37
+            cv_text(4, 132, &FONT_S, "GITHUB.COM/ISOD89/CLIPPER-PRO", C_AMB);   /* (the source of this firmware) */
+#else
             cv_text(4, 132, &FONT_S, "GITHUB.COM/ISOD89/CLIPPER-FM1", C_AMB);   /* (the source of this firmware) */
+#endif
             cv_text(4, 146, &FONT_S, "FONT: TERMINUS (OFL)", C_DIM);
 #if CLIPPER_SYNTH                                            /* (no built-in samples: the DSP's sources) */
             cv_text(4, 159, &FONT_S, "LADDER: ZAVALISHIN", C_DIM);
@@ -265,7 +282,16 @@ static void mi_set(uint32_t i, int32_t s)
     case MI_NOTES:
         lights_notes = (uint8_t)(s > 0 ? 1u : s < 0 ? 0u : !lights_notes);
         break;
+#if CLIPPER_SYNTH && BOARD_SMK37
+    case MI_LIGHTS: {                                  /* PAD LIGHTS: right brighter, left dimmer; OCT+ steps round */
+        uint32_t l = padl_lvl();
+        l = s > 0 ? (l ? l - 1u : 0u) : s < 0 ? (l < 2u ? l + 1u : 2u) : (l + 1u) % 3u;
+        lights_lvl = (uint8_t)l;
+        break;
+    }
+#else
     case MI_LIGHTS:
+#endif
     case MI_KEYS: {                                    /* brighter / dimmer (stops at the ends); OCT+ steps round */
         uint8_t *v = i == MI_LIGHTS ? &lights_lvl : &lights_keys;
         uint32_t n = i == MI_LIGHTS ? LIGHTS_N : KEYS_N;

@@ -17,13 +17,13 @@ four spare buttons) play the synthesizer and never replace an FM-1 control.
 | K1 | master volume (a virtual pot) | MASTER |
 | K2 | SELECT: pages, menu sections, tempo | SELECT |
 | K3 | ALGORITHM: the kind of sound (BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, USER) | ALGORITHM |
-| K4 | PRESETS: the sounds; turned on HOME, the SOUNDS show on the pads for a moment | PRESETS |
+| K4 | PRESETS: the sounds (the pads keep playing; KNOB BANK flashes: the sounds are on the pads there) | PRESETS |
 | K5 to K8 | the screen's four dials (KNOB 1 to 4); on HOME the sound's main controls | KNOB 1 to 4 |
 
 ## Faders
 
 Four faders, four banks. **FADER BANK** shows the bank screen; pressed again, `<` `>` or K2 step the banks; PATCH
-closes it, or it closes by itself after 4 s. A fader takes over only once it moves, so nothing jumps after a sound or
+closes it, or it closes by itself after 4 s. Moving a fader brings the screen up with the value it set. A fader takes over only once it moves, so nothing jumps after a sound or
 bank change. A fader sets its value as the MIDI CC does from a controller (0 to 127 over the whole range), on the
 sound being played; with GLO > MIDI 2 > SEND CC the move goes out as that CC too, for a DAW to record.
 
@@ -57,9 +57,9 @@ of their travel set the range; the pitch wheel's rest is its centre.
 |---|---|
 | the middle 27 keys (F3 to G5) | the FM-1's 27 keys, with velocity (the factory curves of your unit) |
 | the 5 lowest (C3 to E3) and 5 highest (G#5 to C6) keys | more notes of the sound, with velocity (chromatic, OCT and TRANS apply) |
-| 16 RGB pads, **NOTES** (the default) | the 16 white keys F3 to G5 (bottom row F3 to C4, top row D4 to G5), with velocity. They play as the keys do: SEL's QNT WHITE makes the white keys walk the scale from C4, chords, the arpeggiator and recording included. Lit in the colour of the sound's kind: bright while the note sounds, the root's pads half, the others dim, a silent pad dark |
-| 16 RGB pads, **SOUNDS** | **KNOB BANK** pins it (pressed again: closed); a K4 turn on HOME shows it for a moment. The pads and the screen show the sounds of one kind, 16 a page (the favourites, then BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, then your user presets), each kind in its colour, the current sound white. A tap loads the sound and plays a short preview; `<` `>` step the pages; PATCH closes it |
-| pads, a layer held | as on the FM-1's keys: SEQ held, the 16 steps (read like text: top row 1 to 8); SEL held, a little piano (top row C4 to C5, bottom row the black keys); FX held, the punch-in effects; GLO held, the mix tiles |
+| 16 RGB pads, **NOTES** (the default) | the 16 white keys F3 to G5 (bottom row F3 to F4, top row G4 to G5), with velocity. They play as the keys do: SEL's QNT WHITE makes the white keys walk the scale from C4, chords, the arpeggiator and recording included. Lit in the colour of the sound's kind: bright while the note sounds, the root's pads half, the others dim, a silent pad dark |
+| 16 RGB pads, **SOUNDS** | **KNOB BANK** opens it (lit; pressed again: closed). Only KNOB BANK does: K3 and K4 browse the sounds while the pads keep playing, and an open SOUNDS follows them to the sound's page. The pads and the screen show the sounds of one kind, 16 a page (the favourites, then BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, then your user presets), each kind in its colour, the current sound white. A tap loads the sound and plays a short preview; `<` `>` step the pages; PATCH closes it |
+| pads, a layer held | as on the FM-1's keys: SEQ held, the 16 steps (read like text: top row 1 to 8); SEL held, a little piano (top row C4 to C5, bottom row the black keys): a pad sets the key; FX held, the 16 punch-in effects; GLO held, FILL (9), FILL NEXT BAR (10), TAP tempo (16); SAVE held, the song's sections (1 to 4 play, 5 to 8 store, 13 LOOP / SONG, 14 SONG REC, 16 the SONG page). Every tile that does something glows, the active one bright |
 
 ## Buttons
 
@@ -84,6 +84,11 @@ of their travel set the range; the pitch wheel's rest is its centre.
 Power-on: **OCTAVE-** held: CLIPPER PRO USB RESCUE (install again from the installer page). **OCTAVE- + OCTAVE+**
 held: the hardware calibration (it teaches which button and knob does what). OCTAVE- + OCTAVE+ held 5 s while stopped:
 the chip's mask-ROM bootloader (WL82 UBOOT1.00), for a full flash backup.
+
+## Menu
+
+Clipper's HOME menu (PATCH held), with on the SMK-37: **LIGHTS > PAD LIGHTS**, the pads' brightness (HIGH, MID, LOW;
+kept in the LIGHTS setting). The FM-1's key lights (KEYS) are left out: the SMK-37's keys have no lights.
 
 ## MIDI
 
