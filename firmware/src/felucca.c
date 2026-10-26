@@ -93,6 +93,9 @@
 #include "ui_draw.c"
 #include "ui_vis.c"           /* the full-screen visualiser (HOME on HOME, 2.4) */
 #include "ui_layers.c"       /* hold a function button: what the keys and knobs do (TE style) */
+#if BOARD_SMK37
+#include "ui_scope.c"          /* SMK-37: PADS > PAD SCOPE, the pads' trigger monitor */
+#endif
 #include "ui_menu.c"
 #include "ui_input.c"
 #ifndef FELUCCA_FLASH

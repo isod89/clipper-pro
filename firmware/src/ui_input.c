@@ -354,6 +354,20 @@ static void ui_leds(void)
                     padled_set(SMK_PAD_OF_KEY(c), 0, 0, 0);
             }
         }
+        {                                          /* a pad just hit flashes white 80 ms, whatever it showed */
+            static uint32_t fl_until[SMK_NPAD];
+            uint32_t h, p;
+            fm1_irq_off();
+            h = smk_pad_hits;
+            smk_pad_hits = 0;
+            fm1_irq_on();
+            for (p = 0; p < SMK_NPAD; p++) {
+                if ((h >> p) & 1u)
+                    fl_until[p] = fm1_ms + 80u;
+                if ((int32_t)(fm1_ms - fl_until[p]) < 0)
+                    padled_set(p, 170, 170, 170);
+            }
+        }
     }
 #else
     for (c = 0; c < FM1_NCOL; c++) {

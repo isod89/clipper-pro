@@ -487,9 +487,9 @@ static void fm1__frame(void)
  * - mask: none starts within SMK_PAD_LOCKN readings (~40 ms) of a note-on: one tap in two humps (a graze, then the
  *   press) is one note; meanwhile the guard below follows the force;
  * - retrigger cancel: the next hit must rise half the threshold above a guard, the pad's envelope: it rises with
- *   every reading above it (the hit itself, its tail, a finger left on the pad) and fades by 1/32 a reading (it halves
- *   in ~40 ms): the pad's rebound and a soft tap's wavering tail are no second note, a roll is (16 hits a second on
- *   one pad). (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
+ *   every reading above it (the hit itself, its tail, a finger left on the pad) and fades by 1/48 a reading (it halves
+ *   in ~60 ms): the pad's rebound and a soft tap's wavering tail are no second note, a roll is (16 hits a second on
+ *   one pad). PADS > PAD SCOPE (ui_scope.c) shows all of it. (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
 static volatile uint8_t smk_pad_level = 1u;   /* PAD THRESHOLD: 0 LOW, 1 MID (the default), 2 HIGH, 3 MAX */
 static const uint8_t SMK_PAD_ON_LV[4] = {20, 32, 48, 72};
 #define SMK_PAD_ON ((uint32_t)SMK_PAD_ON_LV[smk_pad_level & 3u])   /* above the baseline (and the valley): a hit */
@@ -544,7 +544,70 @@ static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or rele
     fm1_in.notes = fm1_in.knotes | fm1_in.pnotes;
 }
 
-static void smk__pad(uint32_t p, uint32_t raw)
+/* PAD SCOPE (the HOME menu, ui_scope.c), a drum module's trigger monitor: the readings of the pad hit last, its guard
+ * and its notes, SMK_SCOPE_N of them (430 ms). Two note-ons of that pad within SMK_SCOPE_DBL readings (250 ms) are a
+ * double: SMK_SCOPE_AFTER more readings, then the record stops (frozen) until the UI asks again (smk_scope_rearm).
+ * Recorded only while the screen is up (smk_scope.on) */
+#define SMK_SCOPE_N 240u
+#define SMK_SCOPE_DBL 139u
+#define SMK_SCOPE_AFTER 70u
+enum { SC_HIT = 1, SC_ON = 2, SC_OFF = 4 };
+static struct {
+    volatile uint8_t on, frozen, pad;
+    volatile uint16_t n;                               /* readings recorded (the last SMK_SCOPE_N kept) */
+    uint16_t stop, since, dt;                          /* (a double: readings left; since the last note-on; between the two) */
+    uint8_t vel[2], nnotes;
+    uint16_t raw[SMK_SCOPE_N], base;                  /* (the baseline: the last one) */
+    uint8_t rt[SMK_SCOPE_N], ev[SMK_SCOPE_N];          /* (the guard / 4) */
+} smk_scope;
+static uint8_t smk_scope_vel;                          /* the velocity of the note-on just sent */
+static volatile uint16_t smk_pad_hits;                 /* bit per hardware pad: a note-on since the UI last looked (its
+                                                         * flash, ui_input.c pads_flash) */
+static void smk_scope_rearm(void)
+{
+    smk_scope.frozen = 0;
+    smk_scope.stop = 0;
+    smk_scope.n = 0;
+    smk_scope.since = 0xFFFFu;
+    smk_scope.nnotes = 0;
+    smk_scope.dt = 0;
+}
+static void smk_scope_rec(uint32_t p, uint32_t raw, uint32_t ev)
+{
+    uint32_t i;
+    if (smk_scope.frozen)
+        return;
+    if ((ev & SC_HIT) && p != smk_scope.pad && !smk_scope.stop) {   /* another pad: record that one, afresh */
+        smk_scope.pad = (uint8_t)p;
+        smk_scope_rearm();
+    }
+    if (p != smk_scope.pad)
+        return;
+    i = smk_scope.n % SMK_SCOPE_N;
+    smk_scope.raw[i] = (uint16_t)raw;
+    smk_scope.rt[i] = (uint8_t)(fm1_in.pad_rt[p] >> 2 > 255u ? 255u : fm1_in.pad_rt[p] >> 2);
+    smk_scope.base = fm1_in.pad_base[p];
+    smk_scope.ev[i] = (uint8_t)ev;
+    smk_scope.n++;
+    if (smk_scope.since < 0xFFFFu)
+        smk_scope.since++;
+    if (ev & SC_ON) {
+        if (smk_scope.since <= SMK_SCOPE_DBL && !smk_scope.stop) {   /* a second note within 250 ms: a double */
+            smk_scope.dt = smk_scope.since;
+            smk_scope.vel[1] = smk_scope_vel;
+            smk_scope.stop = SMK_SCOPE_AFTER;
+        } else if (!smk_scope.stop) {
+            smk_scope.vel[0] = smk_scope_vel;
+        }
+        if (smk_scope.nnotes < 255u)
+            smk_scope.nnotes++;
+        smk_scope.since = 0;
+    }
+    if (smk_scope.stop && !--smk_scope.stop)
+        smk_scope.frozen = 1;
+}
+
+static uint32_t smk__pad_run(uint32_t p, uint32_t raw)   /* -> SC_* events of this reading */
 {
     uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p], rt = fm1_in.pad_rt[p], lk = fm1_in.pad_lock[p];
     uint32_t on = SMK_PAD_ON, vly = fm1_in.pad_vly[p], h = raw > base ? raw - base : 0u, hit;
@@ -552,7 +615,7 @@ static void smk__pad(uint32_t p, uint32_t raw)
     if (lk)
         fm1_in.pad_lock[p] = (uint8_t)(lk - 1u);
     if (rt)                                                 /* the guard: the pad's envelope, fading */
-        rt -= rt >> 5 ? rt >> 5 : 1u;
+        rt -= rt / 48u ? rt / 48u : 1u;
     hit = st == 0u && !lk && h > (rt + on / 2u > on ? rt + on / 2u : on) && raw >= vly + on;
     fm1_in.pad_rt[p] = (uint16_t)(h > rt ? h : rt);         /* (it rises with every reading above it) */
     if (st == 0u) {
@@ -561,28 +624,31 @@ static void smk__pad(uint32_t p, uint32_t raw)
         if (hit) {                                          /* a hit: above the guard, risen from the valley */
             fm1_in.pad_st[p] = 1;
             fm1_in.pad_peak[p] = (uint16_t)raw;
+            return SC_HIT;
         } else if (!lk && h <= on) {                        /* the baseline follows (stock), not under a guard */
             if (base > raw)
                 fm1_in.pad_base[p] = (uint16_t)(base - 1u);
             else if (base < smk_trim_pad[p][0])
                 fm1_in.pad_base[p] = (uint16_t)(base + 2u);
         }
-        return;
+        return 0;
     }
     if (st < 0x80u) {                                       /* the peak: until the force falls, or the window ends */
         uint32_t pk = fm1_in.pad_peak[p];
         if (raw >= pk && st + 1u < SMK_PAD_PEAKMAX) {      /* still rising */
             fm1_in.pad_peak[p] = (uint16_t)raw;
             fm1_in.pad_st[p] = (uint8_t)(st + 1u);
-            return;
+            return 0;
         }
         if (raw > pk)
             fm1_in.pad_peak[p] = (uint16_t)(pk = raw);     /* (the window ended still rising) */
         fm1_in.pad_st[p] = 0x80;
         fm1_in.pad_low[p] = 0;
         fm1_in.pad_lock[p] = SMK_PAD_LOCKN;
-        smk__padq(p, smk_vel7(smk_curve(smk_trim_pad[p], pk)));
-        return;
+        smk_scope_vel = smk_vel7(smk_curve(smk_trim_pad[p], pk));
+        smk_pad_hits |= (uint16_t)(1u << p);
+        smk__padq(p, smk_scope_vel);
+        return SC_ON;
     }
     fm1_in.pad_press[p] = (uint8_t)(raw <= 0x200u ? raw >> 4 : (raw - 0x200u) / 4u + 32u > 127u ? 127u
                                                                       : (raw - 0x200u) / 4u + 32u);
@@ -592,10 +658,19 @@ static void smk__pad(uint32_t p, uint32_t raw)
             fm1_in.pad_press[p] = 0;
             fm1_in.pad_vly[p] = (uint16_t)raw;              /* (the valley starts here) */
             smk__padq(p, 0);
+            return SC_OFF;
         }
     } else {
         fm1_in.pad_low[p] = 0;
     }
+    return 0;
+}
+
+static void smk__pad(uint32_t p, uint32_t raw)
+{
+    uint32_t ev = smk__pad_run(p, raw);
+    if (smk_scope.on)
+        smk_scope_rec(p, raw, ev);
 }
 
 static void smk__analog(uint32_t slot, uint32_t raw)

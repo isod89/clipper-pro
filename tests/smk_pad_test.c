@@ -132,6 +132,16 @@ int main(void)
     idle(50);
     check(notes == 1, "a slow tap (top at 12 ms), then its rebound at 30 % of the top: one note");
 
+    /* a medium tap (450) and the pad's rebound at 40 % of it, 70 ms later (the rubber coming back up) */
+    reset();
+    for (k = 0; k < N(20); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 450.0, 4.0, 8.0) + noise(3));
+    idle(N(50));
+    for (k = 0; k < N(15); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 180.0, 4.0, 6.0) + noise(3));
+    idle(50);
+    check(notes == 1, "a medium tap (450) and its rebound at 40 %, 70 ms later: one note");
+
     /* one tap in two humps: a graze (150) at 3 ms, back to the baseline for 6 ms, then the press (450) */
     reset();
     for (k = 0; k < N(6); k++)
@@ -275,6 +285,26 @@ int main(void)
             hard = hit_at_phase(880.0, 3.0, 6.0, 0.7);
         printf("smk pad: (soft %d, medium %d, hard %d)\n", soft, mid, hard);
         check(soft > 0 && soft < mid && mid < hard, "soft < medium < hard");
+    }
+
+    /* PAD SCOPE: two notes of one pad 100 ms apart are a double: recorded, then frozen 70 readings later */
+    {
+        int j, n0;
+        reset();
+        smk_scope.on = 1;
+        smk_scope.pad = 0xFF;
+        smk_scope_rearm();
+        for (k = 0; k < 2; k++)
+            for (j = 0; j < N(100); j++)
+                read1(BASE + (int)hitf(j * DT + 0.5, 500.0, 3.0, 6.0) + noise(2));
+        n0 = smk_scope.n;
+        idle(200);
+        check(smk_scope.pad == PAD && smk_scope.nnotes == 2 && smk_scope.frozen && smk_scope.n == n0 - (n0 - smk_scope.n) &&
+              smk_scope.dt >= 54 && smk_scope.dt <= 57 && smk_scope.vel[0] && smk_scope.vel[1],
+              "PAD SCOPE: two notes 100 ms apart: the double recorded (55 readings apart), then frozen");
+        smk_scope_rearm();
+        check(!smk_scope.frozen && smk_scope.n == 0, "PAD SCOPE: again (OCT+): recording afresh");
+        smk_scope.on = 0;
     }
 
     puts(fails ? "SMK PAD TEST FAILED" : "smk pad test passed");

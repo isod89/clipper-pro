@@ -11,10 +11,10 @@
 #if CLIPPER_SYNTH && BOARD_SMK37                   /* Clipper Pro: the LIGHTS section is the pads': PAD LIGHTS (HIGH, MID, LOW,
                                                     * kept in the LIGHTS setting), PAD THRESHOLD (in the KEYS setting: the
                                                     * SMK-37's keys have no lights), NOTES */
-enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
-       MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT };
+enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_SCOPE, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV,
+       MI_CLKOUT, MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT };
 static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "PAD LIGHTS", "PAD THRESHOLD", "NOTES",
-                                              "SPEAKER LOWCUT", "USB AUDIO", "USB SERIAL", "USB RATE", "STEP ADVANCE",
+                                              "PAD SCOPE", "SPEAKER LOWCUT", "USB AUDIO", "USB SERIAL", "USB RATE", "STEP ADVANCE",
                                               "CLOCK OUT (USB)", "MPE (CH 2-16)", "2ND CORE", "HARDWARE CALIBRATION", "ABOUT"};
 static const char *const PADL_NAME[3] = {"HIGH", "MID", "LOW"};
 static uint32_t padl_lvl(void) { return lights_lvl < 3u ? lights_lvl : 0u; }   /* 0 HIGH, 1 MID, 2 LOW */
@@ -38,7 +38,12 @@ static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "LI
 #endif
 /* (1.0, after SLOOP 2.7.1) SEQ: STEP ADVANCE */
 enum { MS_SCREEN, MS_LIGHTS, MS_AUDIO, MS_SEQ, MS_MIDI, MS_SYSTEM, MS_COUNT };
+#if CLIPPER_SYNTH && BOARD_SMK37
+static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "PADS", "AUDIO", "SEQ", "MIDI", "SYS"};   /* (the SMK-37: the
+                                                 * LIGHTS section is the pads': PAD LIGHTS, PAD THRESHOLD, NOTES, PAD SCOPE) */
+#else
 static const char *const MS_NAME[MS_COUNT] = {"SCREEN", "LIGHTS", "AUDIO", "SEQ", "MIDI", "SYS"};   /* (AUDIO: and USB) */
+#endif
 static const uint8_t MS_FIRST[MS_COUNT + 1] = {MI_COLOR, MI_LIGHTS, MI_LOWCUT, MI_ADV, MI_CLKOUT, MI_CPU1, MI_COUNT};   /* rows of each */
 static int mi_cpu1_have(void)                      /* the second core is running (cpu1.c; the host tests have none) */
 {
@@ -103,6 +108,12 @@ static const char *mi_value(uint32_t i, uint16_t *c)
 static void draw_menu(void)
 {
     uint32_t i, pass, sec = mi_sec(ui.menu_sel % MI_COUNT);
+#if BOARD_SMK37
+    if (ui.menu == 3) {                             /* PADS > PAD SCOPE: its own screen (ui_scope.c) */
+        scope_draw();
+        return;
+    }
+#endif
     uint32_t sig = ui.menu * 7u + ui.menu_sel * 131u + settings.palette * 1009u + settings.lowcut * 7919u +
                    settings.zoom * 104729u + lights_lvl * 1299709u + lights_keys * 15485863u +
                    lights_notes * 32452843u + usb_full * 49979687u + usb_serial * 86028121u +
@@ -229,6 +240,9 @@ static void menu_close(void)
         settings_later = 1;                            /* (a flash write stops the audio: once stopped) */
     else
         settings_save();                               /* palette / panel table, if changed */
+#if BOARD_SMK37
+    scope_close();                                     /* (PAD SCOPE: no more recording) */
+#endif
     ui.menu = 0;
     ui.force = 1;
     go_home();
@@ -333,6 +347,15 @@ static void mi_set(uint32_t i, int32_t s)
             ui.force = 1;
         }
         break;
+#if CLIPPER_SYNTH && BOARD_SMK37
+    case MI_SCOPE:                                     /* PAD SCOPE: OCT+ opens it (ui_scope.c) */
+        if (!s) {
+            scope_open();
+            ui.menu = 3;
+            ui.force = 1;
+        }
+        break;
+#endif
     default:
         break;
     }
@@ -345,12 +368,24 @@ static void menu_input(uint32_t pressed)
     uint32_t k, ok = (pressed >> panel.btn[B_OCTUP]) & 1u, back = (pressed >> panel.btn[B_OCTDN]) & 1u;
     uint32_t sel = ui.menu_sel % MI_COUNT, sec = mi_sec(sel), n = MS_FIRST[sec + 1u] - MS_FIRST[sec];
     if (back) {
+#if BOARD_SMK37
+        if (ui.menu == 3)
+            scope_close();
+        if (ui.menu >= 2)
+#else
         if (ui.menu == 2)
+#endif
             ui.menu = 1, ui.force = 1;
         else
             menu_close();
         return;
     }
+#if BOARD_SMK37
+    if (ui.menu == 3 && ok) {                          /* PAD SCOPE: OCT+ records again */
+        smk_scope_rearm();
+        ui.force = 1;
+    }
+#endif
     if (ui.menu != 1) {
         enc_drop();
         return;

@@ -86,8 +86,12 @@ OCTAVE− + OCTAVE+ tenus 5 s à l'arrêt = mode UBOOT (sauvegarde complète de 
 
 ## Le menu (PATCH maintenu)
 
-Comme Clipper, avec sur le SMK-37 : **LIGHTS > PAD LIGHTS** = la luminosité des pads (HIGH, MID, LOW), et
-**LIGHTS > PAD THRESHOLD** = la force qu'il faut pour qu'un pad joue (LOW, MID, HIGH, MAX). L'éclairage des touches
+Comme Clipper, avec sur le SMK-37 une section **PADS** (la section LIGHTS du FM-1) : **PAD LIGHTS** = la luminosité des pads (HIGH, MID, LOW), et
+**PAD THRESHOLD** = la force qu'il faut pour qu'un pad joue (LOW, MID, HIGH, MAX), et **PAD SCOPE** (OCT+) =
+ce que mesure le dernier pad frappé : en blanc la force, en jaune le seuil, en rouge le seuil qu'un nouveau coup doit
+dépasser, en vert les notes. Quand un pad joue deux notes en moins de 250 ms, l'image s'arrête sur **DOUBLE** :
+prenez une photo de l'écran et envoyez-la (OCT+ recommence, OCT- revient).
+Un pad frappé s'allume en blanc un instant. L'éclairage des touches
 du FM-1 (KEYS) n'existe pas ici : le SMK-37 n'a pas de touches lumineuses.
 
 ## Mémoire

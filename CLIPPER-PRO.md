@@ -87,11 +87,15 @@ the chip's mask-ROM bootloader (WL82 UBOOT1.00), for a full flash backup.
 
 ## Menu
 
-Clipper's HOME menu (PATCH held), with on the SMK-37: **LIGHTS > PAD LIGHTS**, the pads' brightness (HIGH, MID, LOW;
-kept in the LIGHTS setting), and **LIGHTS > PAD THRESHOLD**, how firm a tap starts a note (LOW, MID, HIGH, MAX; kept in
+Clipper's HOME menu (PATCH held), with on the SMK-37 a **PADS** section (the FM-1's LIGHTS): **PAD LIGHTS**, the pads' brightness (HIGH, MID, LOW;
+kept in the LIGHTS setting), and **PAD THRESHOLD**, how firm a tap starts a note (LOW, MID, HIGH, MAX; kept in
 the FM-1's KEYS setting: the SMK-37's keys have no lights). Both are shared with SLOOP Pro.
+**PAD SCOPE** (OCT+) is the pads' trigger monitor, as a drum module's: the force of the pad hit last over 430 ms
+(white), PAD THRESHOLD (yellow), the guard a new hit must clear (red), its notes (green: on, blue: off). Two notes of
+one pad within 250 ms stop the picture: DOUBLE, how far apart, both velocities. OCT+ records again, OCT- goes back.
+Take a photo of a double and send it with your report.
 
-The pads trigger as a drum module's: the threshold, the velocity at the peak of the hit, a 40 ms mask after each note
+A pad hit flashes white for 80 ms, whatever it shows. The pads trigger as a drum module's: the threshold, the velocity at the peak of the hit, a 40 ms mask after each note
 and a retrigger cancel that follows the pad's decay: one tap is one note, also a soft one whose finger stays on the
 pad; rolls up to 16 hits a second.
 
