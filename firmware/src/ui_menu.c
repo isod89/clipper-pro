@@ -8,15 +8,21 @@
 /* ------------------------------------------------------------ menu --- */
 /* 0.7 (after SLOOP 2.7): SCREEN + KNOB ACCEL, AUDIO + USB RATE (four rows: the fourth takes the help's place), MIDI
  * (CLOCK OUT, MPE), SYS (2ND CORE, CALIBRATION, ABOUT) */
-#if CLIPPER_SYNTH && BOARD_SMK37                   /* Clipper Pro: LIGHTS is the pads' (PAD LIGHTS: HIGH, MID, LOW, kept in
-                                                    * the LIGHTS setting), NOTES; no KEYS (no lit keys): out of every section */
-enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
-       MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT, MI_KEYS };
-static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "PAD LIGHTS", "NOTES", "SPEAKER LOWCUT",
-                                              "USB AUDIO", "USB SERIAL", "USB RATE", "STEP ADVANCE", "CLOCK OUT (USB)",
-                                              "MPE (CH 2-16)", "2ND CORE", "HARDWARE CALIBRATION", "ABOUT"};
+#if CLIPPER_SYNTH && BOARD_SMK37                   /* Clipper Pro: the LIGHTS section is the pads': PAD LIGHTS (HIGH, MID, LOW,
+                                                    * kept in the LIGHTS setting), PAD THRESHOLD (in the KEYS setting: the
+                                                    * SMK-37's keys have no lights), NOTES */
+enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
+       MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT };
+static const char *const MI_NAME[MI_COUNT] = {"COLOR", "ZOOM", "KNOB ACCEL", "PAD LIGHTS", "PAD THRESHOLD", "NOTES",
+                                              "SPEAKER LOWCUT", "USB AUDIO", "USB SERIAL", "USB RATE", "STEP ADVANCE",
+                                              "CLOCK OUT (USB)", "MPE (CH 2-16)", "2ND CORE", "HARDWARE CALIBRATION", "ABOUT"};
 static const char *const PADL_NAME[3] = {"HIGH", "MID", "LOW"};
 static uint32_t padl_lvl(void) { return lights_lvl < 3u ? lights_lvl : 0u; }   /* 0 HIGH, 1 MID, 2 LOW */
+/* PAD THRESHOLD (smk_input.h smk_pad_level), kept in the KEYS setting: 0 MID (the default), 1 LOW, 2 HIGH, 3 MAX; shared
+ * with SLOOP Pro (the same settings) */
+static const char *const PADT_NAME[4] = {"LOW", "MID", "HIGH", "MAX"};
+static uint32_t padt_lvl(void) { return lights_keys == 0u ? 1u : lights_keys == 1u ? 0u : lights_keys & 3u; }
+static void padt_set(uint32_t l) { lights_keys = (uint8_t)(l == 1u ? 0u : l == 0u ? 1u : l & 3u); }
 #elif CLIPPER_SYNTH                                /* Clipper 0.4: MPE (MIDI: OFF or the member channels' bend range) */
 enum { MI_COLOR, MI_ZOOM, MI_ACCEL, MI_LIGHTS, MI_KEYS, MI_NOTES, MI_LOWCUT, MI_USB, MI_SERIAL, MI_RATE, MI_ADV, MI_CLKOUT,
        MI_MPE, MI_CPU1, MI_PANEL, MI_ABOUT, MI_COUNT };
@@ -70,8 +76,12 @@ static const char *mi_value(uint32_t i, uint16_t *c)
     case MI_LIGHTS: return LIGHTS_NAME[lights_lvl % LIGHTS_N];
 #endif
     case MI_KEYS:
+#if CLIPPER_SYNTH && BOARD_SMK37
+        return PADT_NAME[padt_lvl()];
+#else
         *c = lights_lvl ? C_HI : C_DIM;               /* (needs LIGHTS) */
         return KEYS_NAME[lights_keys % KEYS_N];
+#endif
     case MI_NOTES: return lights_notes ? "ON" : "OFF";
     case MI_LOWCUT: return settings.lowcut ? "ON" : "OFF";
     case MI_USB: return usb_full ? "FULL" : "MASTER";
@@ -289,10 +299,16 @@ static void mi_set(uint32_t i, int32_t s)
         lights_lvl = (uint8_t)l;
         break;
     }
+    case MI_KEYS: {                                    /* PAD THRESHOLD: right higher, left lower; OCT+ steps round */
+        uint32_t l = padt_lvl();
+        padt_set(s > 0 ? (l < 3u ? l + 1u : 3u) : s < 0 ? (l ? l - 1u : 0u) : (l + 1u) % 4u);
+        break;
+    }
 #else
     case MI_LIGHTS:
+    case MI_KEYS:
 #endif
-    case MI_KEYS: {                                    /* brighter / dimmer (stops at the ends); OCT+ steps round */
+    {                                    /* brighter / dimmer (stops at the ends); OCT+ steps round */
         uint8_t *v = i == MI_LIGHTS ? &lights_lvl : &lights_keys;
         uint32_t n = i == MI_LIGHTS ? LIGHTS_N : KEYS_N;
         if (s > 0 && *v + 1u < n)

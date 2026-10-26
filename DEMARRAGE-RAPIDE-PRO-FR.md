@@ -86,8 +86,9 @@ OCTAVE− + OCTAVE+ tenus 5 s à l'arrêt = mode UBOOT (sauvegarde complète de 
 
 ## Le menu (PATCH maintenu)
 
-Comme Clipper, avec sur le SMK-37 : **LIGHTS > PAD LIGHTS** = la luminosité des pads (HIGH, MID, LOW). Les réglages
-de l'éclairage des touches du FM-1 (KEYS) n'existent pas ici : le SMK-37 n'a pas de touches lumineuses.
+Comme Clipper, avec sur le SMK-37 : **LIGHTS > PAD LIGHTS** = la luminosité des pads (HIGH, MID, LOW), et
+**LIGHTS > PAD THRESHOLD** = la force qu'il faut pour qu'un pad joue (LOW, MID, HIGH, MAX). L'éclairage des touches
+du FM-1 (KEYS) n'existe pas ici : le SMK-37 n'a pas de touches lumineuses.
 
 ## Mémoire
 

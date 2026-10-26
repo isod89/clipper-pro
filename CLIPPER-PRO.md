@@ -88,7 +88,12 @@ the chip's mask-ROM bootloader (WL82 UBOOT1.00), for a full flash backup.
 ## Menu
 
 Clipper's HOME menu (PATCH held), with on the SMK-37: **LIGHTS > PAD LIGHTS**, the pads' brightness (HIGH, MID, LOW;
-kept in the LIGHTS setting). The FM-1's key lights (KEYS) are left out: the SMK-37's keys have no lights.
+kept in the LIGHTS setting), and **LIGHTS > PAD THRESHOLD**, how firm a tap starts a note (LOW, MID, HIGH, MAX; kept in
+the FM-1's KEYS setting: the SMK-37's keys have no lights). Both are shared with SLOOP Pro.
+
+The pads trigger as a drum module's: the threshold, the velocity at the peak of the hit, a 40 ms mask after each note
+and a retrigger cancel that follows the pad's decay: one tap is one note, also a soft one whose finger stays on the
+pad; rolls up to 16 hits a second.
 
 ## MIDI
 

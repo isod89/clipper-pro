@@ -32,6 +32,8 @@ static void reset(void)
     fm1_in.pad_st[PAD] = 0;
     fm1_in.pad_rt[PAD] = 0;
     fm1_in.pad_lock[PAD] = 0;
+    fm1_in.pad_vly[PAD] = 0;
+    smk_pad_level = 1;
     for (i = 0; i < 400u; i++)                     /* settle the baseline on the idle reading */
         smk__pad(PAD, (uint32_t)(BASE + noise(3)));
     fm1_in.pnotes = fm1_in.notes = 0;
@@ -149,6 +151,59 @@ int main(void)
         read1(BASE + (int)hitf(k * DT + 0.5, 240.0, 3.0, 5.0) + noise(2));
     idle(50);
     check(notes == 1, "a release that flutters (4 readings at rest, then back to 40 %): one note");
+
+    /* soft taps whose tail wavers above the rest (the finger left on the pad, the rubber settling): the force falls to
+     * +5..+45 and wanders there 300 ms, dipping under the release level now and then: one note each */
+    for (ok = 1, k = 0; k < 4; k++) {
+        int j, lvl = 10 + 8 * k;
+        reset();
+        for (j = 0; j < N(10); j++)
+            read1(BASE + (int)hitf(j * DT + 0.5, 140.0 + 40.0 * k, 3.0, 6.0) + noise(2));
+        for (j = 0; j < N(300); j++)
+            read1(BASE + lvl + (int)(12.0 * sin(j * 0.21)) + noise(9));
+        idle(60);
+        printf("smk pad: (soft tap %d, tail +%d +-21: %d notes)\n", 140 + 40 * k, lvl, notes);
+        if (notes != 1)
+            ok = 0;
+    }
+    check(ok, "soft taps with a tail that wavers above the rest (+10..+34, +-21) for 300 ms: one note each");
+    {                                                /* ... then the finger lifts (15 ms) and taps again softly */
+        int j;
+        reset();
+        for (j = 0; j < N(10); j++)
+            read1(BASE + (int)hitf(j * DT + 0.5, 180.0, 3.0, 6.0) + noise(2));
+        for (j = 0; j < N(200); j++)
+            read1(BASE + 22 + (int)(12.0 * sin(j * 0.21)) + noise(9));
+        idle(N(15));
+        for (j = 0; j < N(12); j++)
+            read1(BASE + (int)hitf(j * DT + 0.5, 120.0, 3.0, 6.0) + noise(9));
+        idle(60);
+        check(notes == 2, "a soft tap, 200 ms of a resting finger, lifted 15 ms, a soft tap (+120) again: two notes");
+        reset();
+        idle(5000);
+        for (j = 0; j < 3000; j++)
+            read1(BASE + noise(12));
+        check(notes == 0, "a pad left alone, noise +-3 then +-12: never fires");
+    }
+
+    /* PAD THRESHOLD: LOW starts a light touch MID does not; MAX needs a firmer one */
+    {
+        int lv[4], j;
+        for (k = 0; k < 4; k++) {
+            reset();
+            smk_pad_level = (uint8_t)k;
+            for (j = 0; j < N(20); j++)
+                read1(BASE + (int)hitf(j * DT + 0.5, 28.0, 3.0, 6.0));
+            lv[k] = notes;
+        }
+        reset();
+        smk_pad_level = 3;
+        for (j = 0; j < N(20); j++)
+            read1(BASE + (int)hitf(j * DT + 0.5, 90.0, 3.0, 6.0));
+        check(lv[0] == 1 && lv[1] == 0 && lv[3] == 0 && notes == 1,
+              "PAD THRESHOLD: a touch of +28: LOW plays, MID does not; MAX plays a +90 tap");
+        smk_pad_level = 1;
+    }
 
     /* a roll: four equal hits 60 ms apart (16 a second); a softer hit (2/3) 50 ms after a hard one */
     reset();

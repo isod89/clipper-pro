@@ -57,6 +57,7 @@ Vos presets utilisateur et réglages de SLOOP Pro restent (Clipper Pro les parta
 | 15 | SEQ tenu ; SEQ tapé (NOTES) | Les 16 pas sur les pads (haut 1–8) ; la page NOTES du séquenceur |
 | 15b | GLOBE tenu ; BT tenu ; FX tenu | Pads : seules les cases utiles allumées (GLOBE : 9, 10, 16 ; BT : parties enregistrées, 5–8, 13, 14, 16 ; FX : les 16, et l'écran dit « hold + pad ») |
 | 15c | PATCH maintenu → LIGHTS → PAD LIGHTS | HIGH, MID, LOW changent la luminosité des pads ; KEYS n'apparaît plus |
+| 15d | Pads (NOTES) : 20 frappes douces, 20 fortes, un doigt laissé posé après une frappe douce, un roulement ; puis LIGHTS → PAD THRESHOLD sur LOW et HIGH | Une frappe = une note, même douce ; le roulement joue chaque coup ; LOW : un effleurement joue ; HIGH : il faut appuyer plus |
 | 16 | Synthé externe sur la prise TRS (adaptateur TRS → DIN) | Il joue ce que jouent les touches, les pads, l'arpège |
 | 17 | Un DAW sur USB : touches, molettes, pédale | Notes, pitch bend, CC 1, CC 64 reçus ; GLO > MIDI 2 > SEND CC : les faders envoient leurs CC |
 | 18 | Un son modifié, SAVE > USER, éteindre, rallumer | Le preset est là |

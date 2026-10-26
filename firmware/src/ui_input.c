@@ -303,6 +303,7 @@ static void ui_leds(void)
         fm1_led[c] = nl[c];
     smk_pad_piano = ui.layer == LY_SCALE;          /* SCALE held: the pads are a little piano (smk_input.h) */
     padled_dim_set(lights_lvl < 3u ? lights_lvl : 0u);   /* PAD LIGHTS (ui_menu.c padl_lvl) */
+    smk_pad_level = (uint8_t)padt_lvl();           /* PAD THRESHOLD (ui_menu.c) */
     fm1_led[SMK_BTN_FADER_BANK] = fb_shown();      /* FADER BANK lit while its screen is up */
     fm1_led[SMK_BTN_KNOB_BANK] = pick_pin || (int32_t)(fm1_ms - pick_k4_until) < 0;   /* KNOB BANK: SOUNDS pinned, K4 turning */
     smk_pad_pick = (uint16_t)(pick_shown() ? 0xFFFFu : 0u);   /* (the SOUNDS pads: no notes) */

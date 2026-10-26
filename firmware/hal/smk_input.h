@@ -145,6 +145,7 @@ static volatile struct {
     uint16_t pad_raw[SMK_NPAD], pad_base[SMK_NPAD], pad_peak[SMK_NPAD];
     uint16_t pad_rt[SMK_NPAD];   /* the retrigger guard: above the baseline, after a release (decays) */
     uint8_t pad_lock[SMK_NPAD];  /* readings left after a note-on before the pad may start another (SMK_PAD_LOCKN) */
+    uint16_t pad_vly[SMK_NPAD];  /* the lowest reading since the last release: a new hit must rise from it */
     uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKMAX collecting the peak, 0x80 on */
     uint8_t pad_low[SMK_NPAD];
     uint8_t pad_press[SMK_NPAD]; /* pressure 0..127 while on */
@@ -473,20 +474,28 @@ static void fm1__frame(void)
 }
 
 /* ---------------------------------------------------------------- analog --- */
-/* The pads: force sensors, each read every 1.8 ms (smk_sched, smk__analog). A hit starts above the baseline +
- * SMK_PAD_ON; its velocity is the force's peak through the pad's factory curve. The note goes as soon as the force
- * falls (the peak has passed: a hard hit, 1.8 ms after the crossing) or after SMK_PAD_PEAKMAX readings (a slow press,
- * 5.4 ms): never late, never measured on its way up. Released after SMK_PAD_RELN readings in a row under the baseline
- * + SMK_PAD_OFF: a light hold that wavers does not let go. After a release, the next hit must rise above a guard that
- * starts at the last one's height (its highest reading, also after the note went) and fades by 1/32 a reading (it
- * halves in ~40 ms): the pad's rebound is no second note, a roll is. And none starts within SMK_PAD_LOCKN readings
- * (~40 ms) of a note-on: one tap that comes in two humps (a graze, then the press) is one note; while that lasts the
- * guard follows the force, so a press still there when it ends is no note either. A roll on one pad is 16 hits a
- * second at most (60 ms). (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
-#define SMK_PAD_ON 24u            /* above the baseline: a hit starts */
-#define SMK_PAD_OFF 12u           /* below base + this, SMK_PAD_RELN readings in a row: released */
+/* The pads: force sensors, each read every 1.8 ms (smk_sched, smk__analog), after the trigger settings of drum modules
+ * (Roland's threshold, scan time, mask time and retrigger cancel; Akai's pad threshold):
+ * - threshold: a hit starts SMK_PAD_ON above the baseline (the menu's PAD THRESHOLD, smk_pad_level: LOW, MID, HIGH,
+ *   MAX), and only as a rise of that much from the lowest reading since the last release (pad_vly): a soft tap's
+ *   tail that wavers above the rest (the finger still on the pad, the rubber settling) never starts another;
+ * - scan: the velocity is the force's peak through the pad's factory curve, the note goes as soon as the force falls
+ *   (the peak has passed: a hard hit, 1.8 ms after the crossing) or after SMK_PAD_PEAKMAX readings (a slow press,
+ *   5.4 ms): never late, never measured on its way up;
+ * - release: SMK_PAD_RELN readings in a row under the baseline + SMK_PAD_OFF (half the threshold): a light hold that
+ *   wavers does not let go;
+ * - mask: none starts within SMK_PAD_LOCKN readings (~40 ms) of a note-on: one tap in two humps (a graze, then the
+ *   press) is one note; meanwhile the guard below follows the force;
+ * - retrigger cancel: the next hit must rise half the threshold above a guard, the pad's envelope: it rises with
+ *   every reading above it (the hit itself, its tail, a finger left on the pad) and fades by 1/32 a reading (it halves
+ *   in ~40 ms): the pad's rebound and a soft tap's wavering tail are no second note, a roll is (16 hits a second on
+ *   one pad). (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
+static volatile uint8_t smk_pad_level = 1u;   /* PAD THRESHOLD: 0 LOW, 1 MID (the default), 2 HIGH, 3 MAX */
+static const uint8_t SMK_PAD_ON_LV[4] = {20, 32, 48, 72};
+#define SMK_PAD_ON ((uint32_t)SMK_PAD_ON_LV[smk_pad_level & 3u])   /* above the baseline (and the valley): a hit */
+#define SMK_PAD_OFF (SMK_PAD_ON / 2u)        /* below base + this, SMK_PAD_RELN readings in a row: released */
 #define SMK_PAD_PEAKMAX 4u        /* readings from the crossing: the velocity's window (the crossing + 3) */
-#define SMK_PAD_RELN 3u
+#define SMK_PAD_RELN 4u
 #define SMK_PAD_LOCKN 22u         /* readings (1.8 ms) after a note-on: no other note from that pad (~40 ms) */
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
@@ -538,24 +547,23 @@ static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or rele
 static void smk__pad(uint32_t p, uint32_t raw)
 {
     uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p], rt = fm1_in.pad_rt[p], lk = fm1_in.pad_lock[p];
+    uint32_t on = SMK_PAD_ON, vly = fm1_in.pad_vly[p], h = raw > base ? raw - base : 0u, hit;
     fm1_in.pad_raw[p] = (uint16_t)raw;
     if (lk)
         fm1_in.pad_lock[p] = (uint8_t)(lk - 1u);
+    if (rt)                                                 /* the guard: the pad's envelope, fading */
+        rt -= rt >> 5 ? rt >> 5 : 1u;
+    hit = st == 0u && !lk && h > (rt + on / 2u > on ? rt + on / 2u : on) && raw >= vly + on;
+    fm1_in.pad_rt[p] = (uint16_t)(h > rt ? h : rt);         /* (it rises with every reading above it) */
     if (st == 0u) {
-        if (rt)                                             /* the guard after a release fades */
-            fm1_in.pad_rt[p] = (uint16_t)(rt -= rt >> 5 ? rt >> 5 : 1u);
-        if (lk) {                                           /* just after a note-on: no new hit; the guard follows */
-            if (raw > base && raw - base > rt)
-                fm1_in.pad_rt[p] = (uint16_t)(raw - base);
-            return;
-        }
-        if (raw > base + (rt > SMK_PAD_ON ? rt : SMK_PAD_ON)) {
+        if (raw < vly)
+            fm1_in.pad_vly[p] = (uint16_t)raw;              /* the valley since the release */
+        if (hit) {                                          /* a hit: above the guard, risen from the valley */
             fm1_in.pad_st[p] = 1;
             fm1_in.pad_peak[p] = (uint16_t)raw;
-            fm1_in.pad_rt[p] = 0;
-        } else if (raw <= base + SMK_PAD_ON) {               /* (not a rebound under the guard) */
+        } else if (!lk && h <= on) {                        /* the baseline follows (stock), not under a guard */
             if (base > raw)
-                fm1_in.pad_base[p] = (uint16_t)(base - 1u);  /* the baseline follows (stock) */
+                fm1_in.pad_base[p] = (uint16_t)(base - 1u);
             else if (base < smk_trim_pad[p][0])
                 fm1_in.pad_base[p] = (uint16_t)(base + 2u);
         }
@@ -576,16 +584,13 @@ static void smk__pad(uint32_t p, uint32_t raw)
         smk__padq(p, smk_vel7(smk_curve(smk_trim_pad[p], pk)));
         return;
     }
-    if (raw > fm1_in.pad_peak[p])
-        fm1_in.pad_peak[p] = (uint16_t)raw;                 /* (on: the hit's real height, for the guard) */
     fm1_in.pad_press[p] = (uint8_t)(raw <= 0x200u ? raw >> 4 : (raw - 0x200u) / 4u + 32u > 127u ? 127u
                                                                       : (raw - 0x200u) / 4u + 32u);
     if (raw < base + SMK_PAD_OFF) {
         if (++fm1_in.pad_low[p] >= SMK_PAD_RELN) {
-            uint32_t pk = fm1_in.pad_peak[p];
             fm1_in.pad_st[p] = 0;
             fm1_in.pad_press[p] = 0;
-            fm1_in.pad_rt[p] = (uint16_t)(pk > base ? pk - base : 0u);   /* the guard: the hit's height */
+            fm1_in.pad_vly[p] = (uint16_t)raw;              /* (the valley starts here) */
             smk__padq(p, 0);
         }
     } else {
