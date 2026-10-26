@@ -166,10 +166,26 @@ static uint16_t pick_col(uint32_t kind, uint32_t sh)   /* the kind's colour, >> 
     const uint8_t *c = PICK_RGB[kind % 10u];
     return RGB(c[0] >> sh, c[1] >> sh, c[2] >> sh);
 }
-static const uint8_t *pick_rgb_cur(void)           /* the colour of the current sound's kind (the NOTES pads) */
+/* the colour of the current sound's own kind (the NOTES pads, the tiles): the same sound, the same colour, however it
+ * was loaded (never FAV's gold for a favourite: its kind's); a user preset USER's; a sound no list entry names (an
+ * engine switched on the EDIT page, a program change to an unlisted preset) keeps the colour it had */
+static const uint8_t *pick_rgb_cur(void)
 {
-    uint32_t cur = pick_cur();
-    return PICK_RGB[(cur < pick_total() ? pick_kind_of(cur) : PK_USER) % 10u];
+    static uint8_t kind = PK_USER;
+    uint32_t i;
+    track_t *t = TSEL;
+    if (!bank_ready)
+        bank_resolve();
+    if (user_of(t) < UP_SLOTS) {
+        kind = PK_USER;
+    } else {
+        for (i = 0; i < NBANK; i++)
+            if (BANK[i].e == t->eng_req && bank_pi[i] == t->preset) {
+                kind = (uint8_t)(BANK[i].kind < PK_USER ? BANK[i].kind : PK_USER);
+                break;
+            }
+    }
+    return PICK_RGB[kind % 10u];
 }
 static void pick_leds(void)                         /* the current sound white, the others their kind's colour dim */
 {
