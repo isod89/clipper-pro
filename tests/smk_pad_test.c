@@ -3,7 +3,8 @@
 /* SMK-37 pads (firmware/hal/smk_input.h smk__pad): hits from simulated force readings, one every 1.8 ms as the scan
  * gives them, with noise. A hard hit sounds at once (the force falls: the peak has passed) with its peak's velocity;
  * a slow press within 5.4 ms; the pad's rebound after a hard hit is no second note; a roll is every note; a light
- * hold that wavers around the release threshold is one note; the velocity of one hit does not depend on where the
+ * hold that wavers around the release threshold is one note; one tap in two humps (a graze, then the press) is one
+ * note, so is a slow tap with its rebound; the velocity of one hit does not depend on where the
  * 1.8 ms readings fall on it; a pad left alone never fires. Built -O2 (the IRQ lock's asm is left out). */
 #define BOARD_SMK37 1
 #include "smk_input.h"
@@ -30,6 +31,7 @@ static void reset(void)
     fm1_in.pad_base[PAD] = 100u;                   /* (as fm1_input_init) */
     fm1_in.pad_st[PAD] = 0;
     fm1_in.pad_rt[PAD] = 0;
+    fm1_in.pad_lock[PAD] = 0;
     for (i = 0; i < 400u; i++)                     /* settle the baseline on the idle reading */
         smk__pad(PAD, (uint32_t)(BASE + noise(3)));
     fm1_in.pnotes = fm1_in.notes = 0;
@@ -117,6 +119,37 @@ int main(void)
     idle(50);
     check(notes == 1, "the pad's rebound after a hard hit (36 % and 26 %, 12 ms and 30 ms after the hit) is no second note");
 
+    /* one tap that rises slowly (its top at 12 ms, past the velocity's window), then the rubber's rebound at 30 % of
+     * that top, 25 ms after the release: the guard is the tap's real height, not the window's */
+    reset();
+    for (k = 0; k < N(40); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 700.0, 12.0, 10.0) + noise(2));
+    idle(N(20));
+    for (k = 0; k < N(12); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 210.0, 4.0, 6.0) + noise(2));
+    idle(50);
+    check(notes == 1, "a slow tap (top at 12 ms), then its rebound at 30 % of the top: one note");
+
+    /* one tap in two humps: a graze (150) at 3 ms, back to the baseline for 6 ms, then the press (450) */
+    reset();
+    for (k = 0; k < N(6); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 150.0, 2.5, 3.0) + noise(2));
+    idle(N(6));
+    for (k = 0; k < N(30); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 450.0, 4.0, 8.0) + noise(2));
+    idle(50);
+    check(notes == 1, "one tap in two humps (a graze, 6 ms at rest, then the press): one note");
+
+    /* a tap whose release flutters: down under the release level for 4 readings, back up to 40 %, then down */
+    reset();
+    for (k = 0; k < N(8); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 600.0, 2.5, 5.5) + noise(2));
+    idle(4);
+    for (k = 0; k < N(8); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 240.0, 3.0, 5.0) + noise(2));
+    idle(50);
+    check(notes == 1, "a release that flutters (4 readings at rest, then back to 40 %): one note");
+
     /* a roll: four equal hits 60 ms apart (16 a second); a softer hit (2/3) 50 ms after a hard one */
     reset();
     for (k = 0; k < 4; k++) {
@@ -125,6 +158,13 @@ int main(void)
             read1(BASE + (int)hitf(j * DT + 1.0, 700.0, 2.0, 5.0) + noise(2));
     }
     check(notes == 4 && offs == 4, "a roll, four equal hits 60 ms apart: four notes");
+    reset();
+    for (k = 0; k < 2; k++) {
+        int j;
+        for (j = 0; j < N(45); j++)
+            read1(BASE + (int)hitf(j * DT + 1.0, 700.0, 2.0, 5.0) + noise(2));
+    }
+    check(notes == 2, "two equal hits 45 ms apart (past the 40 ms lock): two notes");
     reset();
     for (k = 0; k < N(50); k++)
         read1(BASE + (int)hitf(k * DT + 1.0, 800.0, 2.5, 5.0) + noise(2));

@@ -144,6 +144,7 @@ static volatile struct {
     int16_t enc_steps[FM1_NENC];
     uint16_t pad_raw[SMK_NPAD], pad_base[SMK_NPAD], pad_peak[SMK_NPAD];
     uint16_t pad_rt[SMK_NPAD];   /* the retrigger guard: above the baseline, after a release (decays) */
+    uint8_t pad_lock[SMK_NPAD];  /* readings left after a note-on before the pad may start another (SMK_PAD_LOCKN) */
     uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKMAX collecting the peak, 0x80 on */
     uint8_t pad_low[SMK_NPAD];
     uint8_t pad_press[SMK_NPAD]; /* pressure 0..127 while on */
@@ -477,12 +478,16 @@ static void fm1__frame(void)
  * falls (the peak has passed: a hard hit, 1.8 ms after the crossing) or after SMK_PAD_PEAKMAX readings (a slow press,
  * 5.4 ms): never late, never measured on its way up. Released after SMK_PAD_RELN readings in a row under the baseline
  * + SMK_PAD_OFF: a light hold that wavers does not let go. After a release, the next hit must rise above a guard that
- * starts at the last one's height and fades by 1/32 a reading (it halves in ~40 ms): the pad's rebound is no second
- * note, a roll is. (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
+ * starts at the last one's height (its highest reading, also after the note went) and fades by 1/32 a reading (it
+ * halves in ~40 ms): the pad's rebound is no second note, a roll is. And none starts within SMK_PAD_LOCKN readings
+ * (~40 ms) of a note-on: one tap that comes in two humps (a graze, then the press) is one note; while that lasts the
+ * guard follows the force, so a press still there when it ends is no note either. A roll on one pad is 16 hits a
+ * second at most (60 ms). (SLOOP Pro, Clipper Pro: tests/smk_pad_test.c) */
 #define SMK_PAD_ON 24u            /* above the baseline: a hit starts */
 #define SMK_PAD_OFF 12u           /* below base + this, SMK_PAD_RELN readings in a row: released */
 #define SMK_PAD_PEAKMAX 4u        /* readings from the crossing: the velocity's window (the crossing + 3) */
 #define SMK_PAD_RELN 3u
+#define SMK_PAD_LOCKN 22u         /* readings (1.8 ms) after a note-on: no other note from that pad (~40 ms) */
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
@@ -532,11 +537,18 @@ static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or rele
 
 static void smk__pad(uint32_t p, uint32_t raw)
 {
-    uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p], rt = fm1_in.pad_rt[p];
+    uint32_t base = fm1_in.pad_base[p], st = fm1_in.pad_st[p], rt = fm1_in.pad_rt[p], lk = fm1_in.pad_lock[p];
     fm1_in.pad_raw[p] = (uint16_t)raw;
+    if (lk)
+        fm1_in.pad_lock[p] = (uint8_t)(lk - 1u);
     if (st == 0u) {
         if (rt)                                             /* the guard after a release fades */
-            fm1_in.pad_rt[p] = (uint16_t)(rt - (rt >> 5 ? rt >> 5 : 1u));
+            fm1_in.pad_rt[p] = (uint16_t)(rt -= rt >> 5 ? rt >> 5 : 1u);
+        if (lk) {                                           /* just after a note-on: no new hit; the guard follows */
+            if (raw > base && raw - base > rt)
+                fm1_in.pad_rt[p] = (uint16_t)(raw - base);
+            return;
+        }
         if (raw > base + (rt > SMK_PAD_ON ? rt : SMK_PAD_ON)) {
             fm1_in.pad_st[p] = 1;
             fm1_in.pad_peak[p] = (uint16_t)raw;
@@ -560,9 +572,12 @@ static void smk__pad(uint32_t p, uint32_t raw)
             fm1_in.pad_peak[p] = (uint16_t)(pk = raw);     /* (the window ended still rising) */
         fm1_in.pad_st[p] = 0x80;
         fm1_in.pad_low[p] = 0;
+        fm1_in.pad_lock[p] = SMK_PAD_LOCKN;
         smk__padq(p, smk_vel7(smk_curve(smk_trim_pad[p], pk)));
         return;
     }
+    if (raw > fm1_in.pad_peak[p])
+        fm1_in.pad_peak[p] = (uint16_t)raw;                 /* (on: the hit's real height, for the guard) */
     fm1_in.pad_press[p] = (uint8_t)(raw <= 0x200u ? raw >> 4 : (raw - 0x200u) / 4u + 32u > 127u ? 127u
                                                                       : (raw - 0x200u) / 4u + 32u);
     if (raw < base + SMK_PAD_OFF) {
