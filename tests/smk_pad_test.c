@@ -33,6 +33,7 @@ static void reset(void)
     fm1_in.pad_rt[PAD] = 0;
     fm1_in.pad_lock[PAD] = 0;
     fm1_in.pad_vly[PAD] = 0;
+    fm1_in.pad_bc[PAD] = 0;
     smk_pad_level = 1;
     for (i = 0; i < 400u; i++)                     /* settle the baseline on the idle reading */
         smk__pad(PAD, (uint32_t)(BASE + noise(3)));
@@ -141,6 +142,17 @@ int main(void)
         read1(BASE + (int)hitf(k * DT + 0.5, 180.0, 4.0, 6.0) + noise(3));
     idle(50);
     check(notes == 1, "a medium tap (450) and its rebound at 40 %, 70 ms later: one note");
+
+    /* a medium tap, then the reading dips 30 under the rest for 80 ms (the pads' supply sagging while LEDs light up, or
+     * the rubber snapping back), then the rest again, 400 ms: one note; the baseline does not follow the dip down */
+    reset();
+    for (k = 0; k < N(20); k++)
+        read1(BASE + (int)hitf(k * DT + 0.5, 420.0, 4.0, 8.0) + noise(3));
+    for (k = 0; k < N(80); k++)
+        read1(BASE - 30 + noise(3));
+    idle(N(400));
+    check(notes == 1 && fm1_in.pad_base[PAD] + 12u >= (uint32_t)BASE,
+          "a medium tap, a 30-count dip under the rest for 80 ms, the rest: one note, the baseline back at the rest");
 
     /* one tap in two humps: a graze (150) at 3 ms, back to the baseline for 6 ms, then the press (450) */
     reset();

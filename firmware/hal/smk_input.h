@@ -146,6 +146,7 @@ static volatile struct {
     uint16_t pad_rt[SMK_NPAD];   /* the retrigger guard: above the baseline, after a release (decays) */
     uint8_t pad_lock[SMK_NPAD];  /* readings left after a note-on before the pad may start another (SMK_PAD_LOCKN) */
     uint16_t pad_vly[SMK_NPAD];  /* the lowest reading since the last release: a new hit must rise from it */
+    uint8_t pad_bc[SMK_NPAD];    /* readings toward the baseline's next step (SMK_PAD_BASEN) */
     uint8_t pad_st[SMK_NPAD];    /* 0 idle, 1..SMK_PAD_PEAKMAX collecting the peak, 0x80 on */
     uint8_t pad_low[SMK_NPAD];
     uint8_t pad_press[SMK_NPAD]; /* pressure 0..127 while on */
@@ -476,6 +477,10 @@ static void fm1__frame(void)
 /* ---------------------------------------------------------------- analog --- */
 /* The pads: force sensors, each read every 1.8 ms (smk_sched, smk__analog), after the trigger settings of drum modules
  * (Roland's threshold, scan time, mask time and retrigger cancel; Akai's pad threshold):
+ * - baseline: the reading at rest, followed slowly both ways while the pad is quiet (a count every SMK_PAD_BASEN
+ *   readings): a dip under the rest (the rubber snapping back, the supply sagging while LEDs light) no longer drags it
+ *   down for good (the stock tracking fell a count a reading and rose only up to the factory curve's first point, so a
+ *   pad became more sensitive with each dip, and doubled);
  * - threshold: a hit starts SMK_PAD_ON above the baseline (the menu's PAD THRESHOLD, smk_pad_level: LOW, MID, HIGH,
  *   MAX), and only as a rise of that much from the lowest reading since the last release (pad_vly): a soft tap's
  *   tail that wavers above the rest (the finger still on the pad, the rubber settling) never starts another;
@@ -497,6 +502,7 @@ static const uint8_t SMK_PAD_ON_LV[4] = {20, 32, 48, 72};
 #define SMK_PAD_PEAKMAX 4u        /* readings from the crossing: the velocity's window (the crossing + 3) */
 #define SMK_PAD_RELN 4u
 #define SMK_PAD_LOCKN 22u         /* readings (1.8 ms) after a note-on: no other note from that pad (~40 ms) */
+#define SMK_PAD_BASEN 8u          /* readings at rest a baseline step (14 ms a count, both ways) */
 
 static void smk__padq(uint32_t pad, uint32_t vel)     /* a pad hit (vel) or release (0): its white key */
 {
@@ -625,11 +631,14 @@ static uint32_t smk__pad_run(uint32_t p, uint32_t raw)   /* -> SC_* events of th
             fm1_in.pad_st[p] = 1;
             fm1_in.pad_peak[p] = (uint16_t)raw;
             return SC_HIT;
-        } else if (!lk && h <= on) {                        /* the baseline follows (stock), not under a guard */
-            if (base > raw)
-                fm1_in.pad_base[p] = (uint16_t)(base - 1u);
-            else if (base < smk_trim_pad[p][0])
-                fm1_in.pad_base[p] = (uint16_t)(base + 2u);
+        } else if (base > raw + 2u * on) {                  /* far above the rest (power-on: 100): down at once */
+            fm1_in.pad_base[p] = (uint16_t)(base - 1u);
+        } else if (!lk && h <= on && rt < on && ++fm1_in.pad_bc[p] >= SMK_PAD_BASEN) {
+            fm1_in.pad_bc[p] = 0;                           /* the pad at rest, quiet: the baseline follows it, */
+            if (raw > base)                                 /* slowly, both ways (a dip under the rest: the */
+                fm1_in.pad_base[p] = (uint16_t)(base + 1u); /* rubber snapping back, the supply sagging while */
+            else if (raw < base)                            /* the LEDs light up, moves it a few counts, never */
+                fm1_in.pad_base[p] = (uint16_t)(base - 1u); /* the threshold's worth) */
         }
         return 0;
     }
