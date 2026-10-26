@@ -117,24 +117,29 @@ static void pick_close(void)
 static void pick_pin_toggle(void)                  /* KNOB BANK */
 {
     pick_pin = !pick_pin && !ui.menu;
-    if (pick_pin)
+    if (pick_pin) {
         pick_home();
+        pick_seen = (uint16_t)pick_cur();
+    }
 }
 static void pick_hint(void)                        /* a PRESETS / ALGORITHM detent: KNOB BANK flashes */
 {
     pick_k4_until = fm1_ms + 150u;
 }
-static void pick_follow(void)                      /* (every frame) the sound changed (K3, K4, MIDI, the editor): an open
-                                                    * SOUNDS goes to its page */
+static void pick_follow(void)                      /* (once a frame) the sound changed (K3, K4, MIDI, the editor): an
+                                                    * open SOUNDS goes to its page */
 {
-    uint32_t cur = pick_cur();
+    static uint32_t fr;
+    uint32_t cur;
+    if (!pick_pin || fr == ui.frame)
+        return;
+    fr = ui.frame;
+    cur = pick_cur();
     if (cur == pick_seen)
         return;
     pick_seen = (uint16_t)cur;
-    if (pick_pin) {
-        pick_home();
-        ui.force = 1;
-    }
+    pick_home();
+    ui.force = 1;
 }
 static void pick_turn(int32_t d)                   /* < > */
 {
