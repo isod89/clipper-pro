@@ -33,7 +33,7 @@ what the bigger keyboard brings, made for playing a synthesizer:
 | **MIDI** | USB MIDI, and the **TRS MIDI OUT** jack: the keys, pads, wheels, pedal, arpeggiator and sequencer go out on both |
 | **Models** | SMK-37 Pro (and Starrykey 37 Play), SMK-37 Elite, MKE-P37: one package each, the installer picks the right one |
 
-> **Status:** Clipper Pro 1.2, EXPERIMENTAL, built on Clipper 1.1 (experimental) with SLOOP 2.8.3's fixes. Install at your own risk (read the
+> **Status:** Clipper Pro 1.2, built on Clipper 1.1 with SLOOP 2.8.3's fixes, tested on the SMK-37. Install at your own risk (read the
 > [safety notes](CLIPPER-PRO.md#safety)); your unit's calibration is never written, and M-VAVE's own updater takes you
 > back at any time.
 
