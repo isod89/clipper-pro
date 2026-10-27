@@ -1,0 +1,1126 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+     Clipper Pro installer: Clipper on the M-Vave SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play). web/make_site.py --pro
+     inlines smkpkg.js, smkota.js and the packages' metadata (one package per model) -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipper Pro installer</title>
+<meta name="theme-color" content="#000000">
+<style>
+  :root { --bg: #000; --fg: #f2f2f2; --dim: #8a8a92; --tile: #16161a; --line: #2a2a30;
+          --blue: #287cff; --green: #1ecc70; --yellow: #ffc618; --orange: #ff621a; --red: #ff2c34; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.6 "Helvetica Neue", -apple-system, BlinkMacSystemFont, Arial, sans-serif; }
+  main { max-width: 600px; margin: 0 auto; padding: 32px 16px 48px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo svg { display: block; width: 200px; height: auto; }
+  .logo rect:first-child { fill: transparent; }
+  .badge { font-weight: 700; letter-spacing: .14em; color: var(--orange); border: 2px solid var(--orange);
+           padding: 2px 8px; font-size: 18px; line-height: 1.2; }
+  .langs { display: flex; gap: 10px; }
+  .lang { font-size: 12px; color: var(--dim); cursor: pointer; text-decoration: underline; background: none;
+          border: 0; padding: 0; }
+  .lang[aria-current="true"] { color: var(--fg); text-decoration: none; }
+  .strip { display: flex; height: 4px; margin: 20px 0 24px; }
+  .strip i { flex: 1; } .strip i:nth-child(1) { background: var(--blue); } .strip i:nth-child(2) { background: var(--green); }
+  .strip i:nth-child(3) { background: var(--yellow); } .strip i:nth-child(4) { background: var(--orange); }
+  h1 { font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin: 0 0 8px; }
+  h2 { font-size: 15px; margin: 26px 0 8px; }
+  .lead { font-size: 20px; line-height: 1.35; margin: 0 0 24px; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 28px; }
+  .tile { background: var(--tile); padding: 10px 10px 12px; border-top: 3px solid var(--c); min-height: 92px; }
+  .tile b { display: block; font-size: 22px; font-weight: 600; color: var(--c); line-height: 1.1; }
+  .tile span { display: block; font-size: 12px; color: var(--dim); margin-top: 4px; }
+  p { margin: 0 0 14px; }
+  ol { margin: 0 0 14px; padding-left: 22px; }
+  fieldset { border: 1px solid var(--line); padding: 10px 12px; margin: 0 0 16px; }
+  legend { font-size: 12.5px; color: var(--dim); padding: 0 4px; }
+  label.m { display: inline-flex; align-items: center; gap: 6px; margin: 2px 14px 2px 0; cursor: pointer; }
+  label.ck { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 14px; cursor: pointer; }
+  button#go { font: 600 15px/1 inherit; font-family: inherit; background: var(--orange); color: #000; border: 0;
+              padding: 16px 0; width: 100%; cursor: pointer; letter-spacing: .08em; text-transform: uppercase; }
+  button#go:disabled { background: var(--tile); color: var(--dim); cursor: default; }
+  #status { margin-top: 14px; min-height: 1.6em; font-variant-numeric: tabular-nums; }
+  #status.bad { color: var(--red); } #status.good { color: var(--green); }
+  #device { color: var(--dim); font-size: 13px; min-height: 1.4em; }
+  .small { color: var(--dim); font-size: 12.5px; }
+  .small a, a { color: inherit; }
+  progress { -webkit-appearance: none; appearance: none; width: 100%; height: 6px; margin-top: 16px; border: 0; background: var(--tile); }
+  progress::-webkit-progress-bar { background: var(--tile); }
+  progress::-webkit-progress-value { background: var(--orange); }
+  progress::-moz-progress-bar { background: var(--orange); }
+  pre { color: var(--dim); font-size: 11px; white-space: pre-wrap; margin-top: 12px; max-height: 180px; overflow: auto; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 18px; }
+  [hidden] { display: none !important; }
+  .ed { display: inline-block; margin: 8px 8px 0 0; padding: 10px 14px; background: var(--tile); text-decoration: none;
+        font: inherit; color: var(--fg); border: 0; cursor: pointer; }
+  @media (max-width: 440px) { .tiles { grid-template-columns: repeat(2, 1fr); } .logo svg { width: 150px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div class="logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 761 260" width="761" height="260" role="img" aria-label="Clipper">
+<rect width="761" height="260" fill="#000"/>
+<path d="M59.29 200.71 A100.00 100.00 0 1 1 200.71 200.71" fill="none" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<line x1="101.32" y1="181.00" x2="104.76" y2="81.24" stroke="#F2F2F2" stroke-width="7" stroke-linecap="round"/>
+<line x1="135.72" y1="181.00" x2="139.16" y2="62.32" stroke="#F2F2F2" stroke-width="7" stroke-linecap="round"/>
+<line x1="168.40" y1="181.00" x2="171.84" y2="86.40" stroke="#F2F2F2" stroke-width="7" stroke-linecap="round"/>
+<polygon points="109.92,88.12 110.75,96.96 111.91,105.71 113.40,114.36 115.23,122.93 117.38,131.40 119.87,139.78 122.69,148.08 125.84,156.27 129.33,164.38 133.14,172.40 107.34,172.40" fill="#FFC618"/>
+<polygon points="144.32,69.20 145.49,79.91 146.99,90.53 148.82,101.06 150.99,111.51 153.49,121.88 156.32,132.15 159.48,142.34 162.98,152.45 166.82,162.47 170.98,172.40 141.74,172.40" fill="#1ECC70"/>
+<polygon points="177.00,93.28 177.66,101.60 178.64,109.83 179.96,117.96 181.62,126.01 183.60,133.97 185.92,141.83 188.56,149.61 191.54,157.30 194.86,164.89 198.50,172.40 174.42,172.40" fill="#287CFF"/>
+<polygon points="98.74,91.56 98.74,172.40 56.60,168.96 61.63,161.66 66.48,154.27 71.15,146.78 75.63,139.18 79.94,131.49 84.06,123.70 88.00,115.82 91.76,107.83 95.34,99.74" fill="#FF621A"/>
+<line x1="73.80" y1="175.84" x2="51.44" y2="167.24" stroke="#F2F2F2" stroke-width="5" stroke-linecap="round"/>
+<polygon points="58.32,172.40 72.56,173.79 86.81,175.05 101.07,176.16 115.33,177.14 129.61,177.99 143.89,178.69 158.17,179.26 172.47,179.69 186.77,179.98 201.08,180.14 195.92,192.18 184.76,193.14 173.59,193.97 162.42,194.66 151.25,195.21 140.07,195.62 128.89,195.89 117.70,196.03 106.51,196.03 95.32,195.89 84.12,195.62" fill="#F2F2F2"/>
+<path d="M328.98 149.28 A30.00 30.00 0 1 1 328.98 110.72" fill="none" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<line x1="364.00" y1="68.00" x2="364.00" y2="160.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<line x1="392.00" y1="100.00" x2="392.00" y2="160.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<circle cx="392.00" cy="72.00" r="6.60" fill="#F2F2F2"/>
+<circle cx="450.00" cy="130.00" r="30.00" fill="none" stroke="#F2F2F2" stroke-width="12"/>
+<line x1="420.00" y1="130.00" x2="420.00" y2="196.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<circle cx="538.00" cy="130.00" r="30.00" fill="none" stroke="#F2F2F2" stroke-width="12"/>
+<line x1="508.00" y1="130.00" x2="508.00" y2="196.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<path d="M648.98 149.28 A30.00 30.00 0 1 1 656.00 130.00" fill="none" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<line x1="596.00" y1="130.00" x2="656.00" y2="130.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<line x1="684.00" y1="100.00" x2="684.00" y2="160.00" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+<path d="M684.00 130.00 A30.00 30.00 0 0 1 724.26 101.81" fill="none" stroke="#F2F2F2" stroke-width="12" stroke-linecap="round"/>
+</svg>
+<span class="badge">PRO</span></div>
+    <div class="langs"><button class="lang" data-l="fr">français</button><button class="lang" data-l="en">english</button><button class="lang" data-l="ja">日本語</button></div></div>
+  <div class="strip"><i></i><i></i><i></i><i></i></div>
+  
+  <h1 data-t="h1"></h1>
+  <p class="lead" data-t="lead"></p>
+  <div class="tiles">
+    <div class="tile" style="--c: var(--blue)"><b>37</b><span data-t="t1"></span></div>
+    <div class="tile" style="--c: var(--green)"><b>16</b><span data-t="t2"></span></div>
+    <div class="tile" style="--c: var(--yellow)"><b>4</b><span data-t="t3"></span></div>
+    <div class="tile" style="--c: var(--orange)"><b>MIDI</b><span data-t="t4"></span></div>
+  </div>
+  <h2 data-t="before"></h2>
+  <ol><li data-t="b1"></li><li data-t="b2"></li><li data-t="b3"></li></ol>
+  <fieldset>
+    <legend data-t="modelL"></legend>
+    <label class="m"><input type="radio" name="model" value="auto" checked> <span data-t="auto"></span></label>
+    <label class="m"><input type="radio" name="model" value="SMK-37 Pro"> SMK-37 Pro / Starrykey 37 Play</label>
+    <label class="m"><input type="radio" name="model" value="SMK-37 Elite"> SMK-37 Elite</label>
+    <label class="m"><input type="radio" name="model" value="MKE-P37"> MKE-P37</label>
+  </fieldset>
+  <label class="ck"><input type="checkbox" id="risk"> <span data-t="risk"></span></label>
+  <p><button id="go" disabled data-t="install"></button></p>
+  <p id="device"></p>
+  <progress id="bar" max="100" value="0"></progress>
+  <p id="status"></p>
+  <pre id="log"></pre>
+  <a class="ed" href="../editor/" data-t="editor"></a>
+  <hr>
+  <h2 data-t="backT"></h2>
+  <p class="small" data-t="back"></p>
+  <p class="small"><a href="https://www.m-vave.com/download" target="_blank" rel="noopener">www.m-vave.com/download</a></p>
+  <h2 data-t="rescueT"></h2>
+  <p class="small" data-t="rescue"></p>
+  <p class="small" data-t="other2"></p>
+  <hr>
+  <p class="small">Clipper Pro: Clipper by isod89 on the M-Vave SMK-37, with the SMK-37 board layer by genkigenki. Clipper grew out of
+    SLOOP and is based on Felucca by Leo Kuroshita (@kurogedelic), <a href="https://hugelton.com" target="_blank" rel="noopener">Hügelton Instruments</a>.
+    Everyone who made it possible: <a href="https://github.com/isod89/clipper-pro/blob/main/CREDITS.md" target="_blank" rel="noopener">CREDITS.md</a>.<br>
+    Font: Terminus (Dimitar Toshkov Zhekov, SIL OFL 1.1).<br>
+    M-VAVE, SMK-37, MKE-P37 and Starrykey are trademarks of their respective owners; Clipper Pro is not affiliated with them.<br>
+    <span data-t="license"></span> <a href="https://github.com/isod89/clipper-pro" target="_blank" rel="noopener">github.com/isod89/clipper-pro</a></p>
+</main>
+<script type="module">
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+//
+// FM-1 (and M-Vave SMK-37 Pro) .fwsc packages in the browser: the package identity and the image the
+// device reads during an update.
+
+const BLOCKS = 20, BLK = 0x30, KEEP = 0x2F, MAX_BLOCKS = 64;
+
+const printable = (m, i) => { const c = (m - i - 1) & 0xFF; return c >= 0x20 && c < 0x7F; };
+
+// the identity blocks: 20, or more when the identity is longer (the Starrykey 37 Play V016's "STARRYKEY-37 PLAY_016"
+// takes 21): further identity markers count only when unused 0x7D markers follow them (the 36-block layout)
+function identityBlocks(fwsc) {
+  let n = BLOCKS;
+  while (n < MAX_BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] !== 0x7D && printable(fwsc[n * BLK + KEEP], n)) n++;
+  return n > BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] === 0x7D ? n : BLOCKS;
+}
+
+// interleave blocks: the identity blocks, then more while the marker is the unused 0x7D (the stock SMK-37 Pro,
+// MKE-P37 and Starrykey 37 Play V016 have 36)
+function blockCount(fwsc) {
+  let n = identityBlocks(fwsc);
+  while (n < MAX_BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] === 0x7D) n++;
+  return n;
+}
+
+// the package identity ("FM-1_904", "SMK-37 Pro_016"): one marker byte after each identity block (0x7D: none);
+// past the first 20 only when the package really has those blocks (logicalImage's count)
+function productOf(fwsc) {
+  if (fwsc.length < BLOCKS * BLK) throw new Error("not an FM-1 package (too short)");
+  const ib = identityBlocks(fwsc), n = ib === BLOCKS ? BLOCKS : Math.min(ib, layout(fwsc).blocks);
+  let s = "";
+  for (let i = 0; i < n; i++) {
+    const m = fwsc[i * BLK + KEEP];
+    if (m !== 0x7D) s += String.fromCharCode((m - i - 1) & 0xFF);
+  }
+  return s;
+}
+
+function deinterleave(fwsc, blocks) {
+  const out = new Uint8Array(fwsc.length - blocks);
+  for (let i = 0; i < blocks; i++) out.set(fwsc.subarray(i * BLK, i * BLK + KEEP), i * KEEP);
+  out.set(fwsc.subarray(blocks * BLK), blocks * KEEP);
+  return out;
+}
+
+function crc16(d, c = 0) {                 // CRC-16/XMODEM, as the package and the device use
+  for (const b of d) {
+    c ^= b << 8;
+    for (let k = 0; k < 8; k++) c = c & 0x8000 ? ((c << 1) ^ 0x1021) & 0xFFFF : (c << 1) & 0xFFFF;
+  }
+  return c;
+}
+
+function jlDec(b) {                        // JieLi ENC stream cipher (its own inverse)
+  const out = Uint8Array.from(b);
+  let key = 0xFFFF;
+  for (let i = 0; i < out.length; i++) {
+    out[i] ^= key & 0xFF;
+    key = ((key << 1) ^ (key & 0x8000 ? 0x1021 : 0)) & 0xFFFF;
+  }
+  return out;
+}
+
+// the logical image's flash.bin (type 0) and ota.bin (type 100) match their CRCs (as fm1_install.py)
+function filesOk(img) {
+  if (img.length < 0x40) return false;
+  const h = jlDec(img.subarray(0, 0x40)), rd = (a, o, n) => a.slice(o, o + n).reduce((v, x, i) => v + x * 2 ** (8 * i), 0);
+  if (crc16(h.subarray(2, 0x40)) !== rd(h, 0, 2)) return false;
+  const count = rd(h, 8, 2);
+  if (count < 1 || count > 8 || img.length < 0x40 + 0x50 * count) return false;
+  for (let i = 0; i < count; i++) {
+    const e = jlDec(img.subarray(0x40 + i * 0x50, 0x90 + i * 0x50));
+    const typ = rd(e, 0, 2), off = rd(e, 8, 4), size = rd(e, 12, 4);
+    if (off + size > img.length) return false;
+    if ((typ === 0 || typ === 100) && crc16(img.subarray(off, off + size)) !== rd(e, 4, 2)) return false;
+  }
+  return true;
+}
+
+// the image the device addresses during an update: the .fwsc without the marker bytes (20 blocks, or the
+// detected count when the files' CRCs agree: a 20-block package can have 0x7D after block 20 by chance)
+function layout(fwsc) {
+  const n = blockCount(fwsc);
+  if (n !== BLOCKS) {
+    const img = deinterleave(fwsc, n);
+    if (filesOk(img) || !filesOk(deinterleave(fwsc, BLOCKS))) return { blocks: n, image: img };
+  }
+  return { blocks: BLOCKS, image: deinterleave(fwsc, BLOCKS) };
+}
+function logicalImage(fwsc) { return layout(fwsc).image; }
+
+// The official FM-1 V15 (M-VAVE Downloads -> PC Firmware -> FM-1 V15, FM-1.fwsc), for the return to the
+// official firmware: only that exact file is accepted (its SHA-256 pins every byte: the loader, the app, the
+// layout; the name of the file proves nothing). The digest is the one Felucca 1.0 pins.
+const STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
+const STOCK_V15_SIZE = 699956;
+const STOCK_V15_PRODUCT = "FM-1_015";
+// The official SMK-37 Pro V016 (SMK-37_Pro_016.fwsc, 36 interleave blocks), for the return of an SMK-37 Pro.
+const STOCK_SMK016_SHA256 = "2d98ce72530e71d617384963423820536f094501299e2cfec0a8d3c3fb6bcfb0";
+const STOCK_SMK016_SIZE = 705252;
+const STOCK_SMK016_PRODUCT = "SMK-37 Pro_016";
+
+async function sha256hex(bytes) {
+  const d = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+// The official SMK-37 range packages known here (M-Vave Downloads -> PC Firmware): informational only (the page
+// tags them "known"); M-Vave's next release is accepted by its structure (identifyStockPackage). The files
+// themselves are never shipped, the user downloads them from M-Vave. product: the identity the keyboard reports
+// once it runs the package (the Starrykey's 21 characters do not fit the 20 identity blocks of its V015 package:
+// that one carries "STARRYKEY-37 PLAY_01", so it is accepted only as this known file).
+const STOCK_SMK = [
+  { name: "SMK-37 Pro", version: "016", product: "SMK-37 Pro_016", size: 705252, sha256: STOCK_SMK016_SHA256 },
+  { name: "SMK-37 Pro", version: "015", product: "SMK-37 Pro_015", size: 701140, sha256: "f7f1831cd7c9ad8b4831b6e71ea0bdbcdff9ae4c4077276b3c965511bf4d4fff" },
+  { name: "SMK-37 Elite", version: "016", product: "SMK-37 Elite_016", size: 705236, sha256: "b2ee38abfef3ae922e4eecdb8a551e14345300ae6f270265feacd33b6ef99cb6" },
+  { name: "SMK-37 Elite", version: "015", product: "SMK-37 Elite_015", size: 701140, sha256: "6cb061bda6fc4a285a1a1014e4fc30782278fa62bdc3add75d14b29d4d76253e" },
+  { name: "MKE-P37", version: "016", product: "MKE-P37_016", size: 705252, sha256: "4306ae5b765ab9afb790edf6d02fa75e872897dbd319049e3956ddd283a51429" },
+  { name: "MKE-P37", version: "015", product: "MKE-P37_015", size: 701140, sha256: "280ee7aae59a17c38bc2e854802c7d08f076e51afff13eb5315ad3748476491f" },
+  { name: "Starrykey 37 Play", version: "016", product: "STARRYKEY-37 PLAY_016", size: 705252, sha256: "3cd57cdd90ee60501c549b9dde53503ef468122e2f34dc110876eefdaf9be3b3" },
+  { name: "Starrykey 37 Play", version: "015", product: "STARRYKEY-37 PLAY_015", size: 701140, sha256: "3ef5d835e88324a925593e1e6959106e16abeabbabf824263803bb236b09224b" },
+];
+
+// the SMK-37 range's model names in a stock identity, and the names the page shows
+const STOCK_MODELS = { "SMK-37 PRO": "SMK-37 Pro", "SMK-37 ELITE": "SMK-37 Elite", "MKE-P37": "MKE-P37", "STARRYKEY-37 PLAY": "Starrykey 37 Play" };
+
+function badPackage(code, msg) { const e = new Error(msg); e.code = code; return e; }
+
+// an M-Vave stock package for the SMK-37 range -> { name, version, product, model, image, known } (image: the
+// logical image the loader writes, as fm1_install.py --force: the detected block count). Accepted by structure, so
+// M-Vave's next release works too: the package parses, its files' CRCs agree, its identity is an SMK-37 range model
+// with a stock version (_000.._099); known: the SHA-256 is one of STOCK_SMK (informational). Refused (code):
+// "fm1" (an FM-1 package, another device), "ours" (one of our firmwares, _7xx/_8xx/_9xx: installed above),
+// "damaged" (the files' CRCs disagree), "unknown" (anything else)
+async function identifyStockPackage(bytes) {
+  const sha = await sha256hex(bytes);
+  if (bytes.length === STOCK_V15_SIZE && sha === STOCK_V15_SHA256)
+    throw badPackage("fm1", "this is the official FM-1 firmware: it is for the FM-1, not for an SMK-37 keyboard");
+  let product, image;
+  try { product = productOf(bytes); image = logicalImage(bytes); }
+  catch (_) { throw badPackage("unknown", "not an M-Vave firmware package for the SMK-37 range"); }
+  const k = STOCK_SMK.find((x) => x.size === bytes.length && x.sha256 === sha);
+  const m = /^(.+)_(\d{3})$/.exec(product);
+  if (/^FM-1(_|$)/i.test(product))
+    throw badPackage("fm1", "this is an FM-1 firmware: it is for the FM-1, not for an SMK-37 keyboard");
+  if (m && /^[789]\d\d$/.test(m[2]) && (STOCK_MODELS[m[1].toUpperCase()] || /^SMK-37/i.test(m[1])))
+    throw badPackage("ours", "this is one of our firmwares (" + product + "): install it above, not here");
+  const known = k && k.product.startsWith(product), name = m && STOCK_MODELS[m[1].toUpperCase()];
+  if (!known && (!name || Number(m[2]) > 99)) throw badPackage("unknown", "not an M-Vave firmware package for the SMK-37 range");
+  if (!filesOk(image)) throw badPackage("damaged", "the package is damaged (its CRCs do not match)");
+  if (known) return { ...k, model: k.product.split("_")[0], image, known: true };
+  return { name, version: m[2], product, model: m[1], image, known: false };
+}
+
+async function validateStockPackage(bytes) {
+  if (bytes.length === STOCK_V15_SIZE && await sha256hex(bytes) === STOCK_V15_SHA256 && productOf(bytes) === STOCK_V15_PRODUCT)
+    return { product: STOCK_V15_PRODUCT, image: logicalImage(bytes) };
+  try { const k = await identifyStockPackage(bytes); return { product: k.product, image: k.image }; } catch (_) { /* below */ }
+  throw new Error("select the unmodified official FM-1 V15 file (FM-1.fwsc) or an official SMK-37 firmware (.fwsc) from M-Vave");
+}
+
+// SLOOP Pro's update library: the installer of genkigenki's SMK-37 site (genkigenki/smk37, from Felucca / SLOOP,
+// GPL-3.0; the version that installs the SMK-37 ports from Chrome on Windows: ports closed before the keyboard leaves
+// the USB, nothing probed until it is gone, a deadline on every port open and every wait, UPGRADE sent again to a
+// silent loader), with SLOOP's additions: find(filter, deep) for a generically named loader, the package's board
+// checked in install() and resume() (boardRefusal), resume(..., { verify }), pickPackage for the three models.
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
+// SMK-37 installer (Windows-safe WebMIDI): Copyright (C) 2026 M. Geisler (genkigenki/makkuro)
+// SLOOP Pro additions: Copyright (C) 2026 isod89
+//
+// The FM-1 USB-MIDI update protocol (M-UPGRADE compatible) over WebMIDI.
+// Step 1: the running firmware reads parts of the package and stages the update
+// loader. Step 2: the loader reads the whole image and writes it. In both steps
+// the device sends cmd 0x30 read requests on the logical image and we answer.
+
+const HS_QUERY = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
+const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
+const MAXDATA = 512;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const IS_OTA = (id) => /^ota-/i.test(id.model);
+// the update loader of SLOOP / Felucca packages ("ota-FM-1_9XX", "ota-SMK-37 Pro_9XX"; the SMK ports also under the
+// Elite's and the MKE-P37's model name, Makkuro37 _7XX). A device left in the update mode of another firmware (the
+// stock updater's loader) is never written: its loader may lay the image out differently. The bare "SMK-37" name
+// ("ota-SMK-37_931") is ChanceTheMaker's SMK firmwares' RAM updater: another package format, so not ours.
+const OUR_LOADER = (id) => /^ota-(FM-1|SMK-37 Pro|SMK-37 Elite|MKE-P37)_[3-9]\d\d$/i.test(id.text);   // (also Polly _3XX, Speak37 _5XX, Gen37 _6XX, DUB-1 _8XX)
+// ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom): "SMK-37_9NN", their own updater
+const OTHER_SMK = (id) => /^(ota-)?SMK-37_9\d\d$/i.test(id.text);
+// the SMK-37 Pro, SMK-37 Elite, MKE-P37, Starrykey 37 Play and the SMK-37+VA mod: one keyboard under several model
+// names, so a package for one runs on all of them (also "SMK-37", the name other firmwares report); an FM-1 is
+// another device
+const SMK_FAMILY = /^(ota-)?(SMK-37([ +].*)?|MKE-P37|STARRYKEY-37.*)$/i;
+const sameKeyboard = (a, b) => a === b || (SMK_FAMILY.test(a) && SMK_FAMILY.test(b));   // two models
+// an official package on the connected keyboard (the return to the M-Vave firmware): "same" (its model), "other"
+// (another model of the same keyboard: allowed, the page warns), "unknown" (the keyboard does not name its model,
+// as "SMK-37" or "SMK-37+VA": allowed, the page warns), "refuse" (another device: FM-1 and SMK never mix)
+const NAMED = /^(SMK-37 Pro|SMK-37 Elite|MKE-P37|STARRYKEY-37 PLAY)$/i;
+function stockFit(deviceModel, product) {
+  const dm = deviceModel.replace(/^ota-/i, ""), pm = product.split("_")[0];
+  if (!sameKeyboard(dm, pm)) return "refuse";
+  if (dm.toLowerCase() === pm.toLowerCase()) return "same";
+  return NAMED.test(dm) ? "other" : "unknown";
+}
+// the MIDI ports find() probes: the FM-1 / SMK models' and the firmwares' names; other gear is never sent anything
+const PORT_RE = /fm-1|smk|speak|dub|elite|mke-p37|starry|felucca|sloop|clipper|melodee|fomni|x0x|makkuro|maku|rainbow|amb-1|choral|orbit|snoop|vector|vox|gen37|ota|composite|sinco|usb-midi/i;
+// a port name without its in / out part (Windows names a device's second port pair "MIDIIN2 (X)" / "MIDIOUT2 (X)")
+const portBase = (n) => n.replace(/^MIDI(?:IN|OUT)(\d*) \((.*)\)$/i, "$2 $1").replace(/[ -](?:in|out|input|output)$/i, "").trim().toLowerCase();
+
+// errors carry a code the pages translate: notfound, model, stopped, noloader, lost, noreturn,
+// mismatch (detail: the identity the device reports), badreq, foreign (detail: the loader's identity),
+// norequest (the loader never asked for data), toomany (more requests than any write needs), timeout (step 1 took
+// too long), oldstock (detail: the stock identity: an M-Vave firmware before V016, refused before anything is sent)
+function fail(code, msg, detail = "") { const e = new Error(msg); e.code = code; e.detail = detail; return e; }
+// a serve() result in words (the log)
+const outcome = (r) => r.finished ? "finished" : r.lost ? "port gone" : r.timeout ? "deadline" : r.norequest ? "no request"
+  : r.toomany ? "too many requests" : "idle";
+
+// every wait has an end (ms): a port open (Windows can leave one pending forever), step 1 in all, the wait for the
+// loader, the loader's first request (our loader gets UPGRADE again at resend), the idle time once writing has
+// started, the wait for the new firmware. Updater's opts.timing overrides single values (the tests)
+const TIMING = { open: 3000, step1Idle: 8000, step1Total: 60000, loader: 30000, jumped: 15000, firstReq: 30000,
+  resend: [5000, 15000], idle: 180000, back: 40000, settle: 2000, reboot: 3000 };
+const QMAX = 256;                                      // SysEx messages queued per link: the oldest go first
+// the M-Vave firmwares of the SMK-37 range before V016: their update mode was not built for this installer
+const OLD_STOCK = (id) => SMK_FAMILY.test(id.model) && !/^ota-/i.test(id.model) && !OTHER_SMK(id) && id.version < 16;
+
+// a promise that gives up after ms (the value is then `fallback`); the timer never outlives it
+function within(p, ms, fallback) {
+  let tm;
+  return Promise.race([p, new Promise((r) => { tm = setTimeout(() => r(fallback), ms); })]).finally(() => clearTimeout(tm));
+}
+// the ports this page opened: closed again once the last user lets go (a short delay lets the last answer leave;
+// a find() that opens the port again in the meantime keeps it open)
+const portUsers = new WeakMap();
+async function openPort(port, ms) {
+  portUsers.set(port, (portUsers.get(port) || 0) + 1);
+  const r = await within(Promise.resolve().then(() => port.open()).then(() => true, () => false), ms, "timeout");
+  if (r !== true) releasePort(port, 0);
+  return r;
+}
+function releasePort(port, delay = 300) {
+  setTimeout(() => {
+    const n = (portUsers.get(port) || 1) - 1;
+    portUsers.set(port, n);
+    if (n <= 0 && port.close && port.state !== "disconnected") Promise.resolve().then(() => port.close()).catch(() => {});
+  }, delay);
+}
+
+function pack7(data) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of data) {
+    acc |= b << nb; nb += 8;
+    while (nb >= 7) { out.push(acc & 0x7F); acc >>>= 7; nb -= 7; }
+  }
+  if (nb) out.push(acc & 0x7F);
+  return out;
+}
+
+function unpack7(s) {
+  const out = []; let acc = 0, nb = 0;
+  for (const b of s) {
+    acc |= (b & 0x7F) << nb; nb += 7;
+    while (nb >= 8) { out.push(acc & 0xFF); acc >>>= 8; nb -= 8; }
+  }
+  return out;
+}
+
+function response(addr, data, fl = 0) {
+  const len = data.length;
+  const body = [0x00, 0x59, 0x30, (len + 8) & 0xFF, ((len + 8) >> 8) & 0xFF, 0, fl,
+    addr & 0xFF, (addr >>> 8) & 0xFF, (addr >>> 16) & 0xFF, (addr >>> 24) & 0xFF,
+    len & 0xFF, (len >> 8) & 0xFF, 0, ...data];
+  let s = 0;
+  for (let i = 6; i < body.length; i++) s += body[i];
+  body.push(~s & 0xFF);
+  return [0xF0, ...pack7(body), 0xF7];
+}
+
+function parseRequest(pkt) {
+  if (pkt[0] !== 0xF0 || pkt[pkt.length - 1] !== 0xF7) return null;
+  const u = unpack7(pkt.slice(1, -1));
+  if (u.length !== 15 || u[0] !== 0 || u[1] !== 0x59 || u[2] !== 0x30) return null;
+  let s = 0;
+  for (let i = 6; i < 14; i++) s += u[i];
+  if ((~s & 0xFF) !== u[14]) return null;
+  return { fl: u[6], addr: (u[7] | (u[8] << 8) | (u[9] << 16) | (u[10] << 24)) >>> 0, len: u[11] | (u[12] << 8) | (u[13] << 16) };
+}
+
+function parseIdentity(pkt) {
+  const d = unpack7(pkt.slice(1, -1));
+  if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
+  const txt = String.fromCharCode(...d.slice(6, 33)).split("\0")[0];   // (some firmwares end the text early)
+  const m = /^([^_]+)_(\d+)$/.exec(txt);
+  return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
+}
+
+// one MIDI in/out pair with a SysEx queue
+class Link {
+  constructor(input, output) {
+    this.input = input; this.output = output; this.q = []; this.waiter = null; this.dropped = 0; this.closed = false;
+    input.onmidimessage = (ev) => {
+      if (ev.data[0] !== 0xF0) return;
+      if (this.q.length >= QMAX) { this.q.shift(); this.dropped++; }   // a device that floods: never unbounded
+      this.q.push(Array.from(ev.data));
+      if (this.waiter) { const w = this.waiter; this.waiter = null; w(); }
+    };
+  }
+  get lost() { return this.input.state === "disconnected" || this.output.state === "disconnected"; }
+  // false when the port is gone (unplugged): WebMIDI throws on a disconnected output
+  send(bytes) {
+    try { this.output.send(bytes); return true; } catch (_) { return false; }
+  }
+  drain() { this.q.length = 0; }
+  async read(ms) {
+    if (!this.q.length) {
+      let tm;
+      await Promise.race([new Promise((r) => { this.waiter = r; }), new Promise((r) => { tm = setTimeout(r, ms); })]);
+      clearTimeout(tm);
+      this.waiter = null;
+    }
+    return this.q.shift() || null;
+  }
+  // done with a device that restarts now (after step 1, after step 2): no more messages, but the ports are not
+  // closed. Closing a port while its device leaves the USB has hung Chrome's MIDI on Windows; the browser drops
+  // the ports of a device that is gone by itself
+  detach() {
+    if (this.closed) return;
+    this.closed = true;
+    this.input.onmidimessage = null;
+    for (const port of [this.input, this.output]) portUsers.set(port, Math.max(0, (portUsers.get(port) || 1) - 1));
+  }
+  // done with a device that restarts in a moment: the ports are closed now, while it is still there
+  closeNow() {
+    if (this.closed) return;
+    this.closed = true;
+    this.input.onmidimessage = null;
+    for (const port of [this.input, this.output]) {
+      const n = Math.max(0, (portUsers.get(port) || 1) - 1);
+      portUsers.set(port, n);
+      if (n <= 0 && port.close && port.state !== "disconnected") Promise.resolve().then(() => port.close()).catch(() => {});
+    }
+  }
+  // done with this pair: no more messages, and the ports are closed (after the last answer left)
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.input.onmidimessage = null;
+    releasePort(this.input); releasePort(this.output);
+  }
+}
+
+// a device that restarts: wait (at most ms) until the browser reports its ports as gone. Opening a port whose device
+// is leaving the USB has hung Chrome's MIDI on Windows (the whole browser), so nothing is probed before that
+async function gone(link, ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end && !link.lost) await sleep(100);
+  return link.lost;
+}
+
+async function handshake(link, tries = 3) {
+  link.drain();
+  for (let t = 0; t < tries; t++) {
+    if (!link.send(HS_QUERY)) return null;
+    const end = Date.now() + 1000;
+    while (Date.now() < end) {
+      const p = await link.read(end - Date.now());
+      if (!p) break;
+      const id = parseIdentity(p);
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
+class Updater {
+  // opts.all: probe every MIDI port, not only PORT_RE's (the handshake query is harmless to other gear)
+  constructor(access, log, opts = {}) {
+    this.access = access;
+    this.log = log || (() => {});
+    this.all = !!opts.all;
+    this.said = new Set();
+    this.t = { ...TIMING, ...(opts.timing || {}) };
+  }
+
+  say(t) { if (!this.said.has(t)) { this.said.add(t); this.log(t); } }   // each port line once
+
+  // every in/out pair with the same port name that answers the handshake
+  // SLOOP Pro: deep (the update loader only, after its device left the USB): when no named port answered, the other
+  // ports too, taken only when they answer the handshake (Windows may name the loader generically, "USB MIDI Device")
+  async find(filter, deep = false) {
+    const dev = await this.find1(filter, false);
+    return dev || !deep || this.all ? dev : this.find1(filter, true);
+  }
+  async find1(filter, others) {
+    const outs = [...this.access.outputs.values()];
+    for (const input of this.access.inputs.values()) {
+      if (input.state !== "connected") continue;
+      const name = input.name || "";
+      if (/^MIDI(IN|OUT)\d+ \(/i.test(name)) { this.say(`port "${name}": a device's extra port, not probed`); continue; }
+      if (others ? PORT_RE.test(name) : (!this.all && !PORT_RE.test(name))) {
+        if (!others) this.say(`port "${name}": not probed`);
+        continue;
+      }
+      const output = outs.find((o) => o.name === input.name) ||
+        outs.find((o) => portBase(o.name || "") === portBase(name)) || (outs.length === 1 ? outs[0] : null);
+      if (!output) { this.say(`port "${name}": no output of that name`); continue; }
+      const oi = await openPort(input, this.t.open);
+      const oo = oi === true ? await openPort(output, this.t.open) : oi;
+      if (oo !== true) {
+        if (oi === true) releasePort(input, 0);
+        this.say(`port "${name}": ${oo === "timeout" ? `did not open within ${this.t.open / 1000} s (replug the cable, close other MIDI apps)` : "cannot open (in use?)"}`);
+        continue;
+      }
+      const link = new Link(input, output);
+      const id = await handshake(link, 2);
+      this.say(`port "${name}" / "${output.name}": ${id ? id.text : "no answer"}`);
+      if (id && (!filter || filter(id))) return { link, id, name: input.name };
+      link.close();
+    }
+    return null;
+  }
+
+  // onTick(seconds waited): about once a second, for a live status; the deadline counts the probing too (a find()
+  // still running at the end is left to finish on its own; what it opens it closes again)
+  // deep: true, or after that many ms of waiting: the ports of other names too (find(filter, true))
+  async waitFor(filter, ms, onTick, deep = false) {
+    const t0 = Date.now(), end = t0 + ms;
+    const timer = onTick ? setInterval(() => onTick(Math.round((Date.now() - t0) / 1000)), 1000) : null;
+    try {
+      while (Date.now() < end) {
+        const run = { gaveUp: false, got: null };
+        const dev = await within(this.find(filter, deep === true || (typeof deep === "number" && Date.now() - t0 >= deep)).then((d) => { if (run.gaveUp && d) d.link.close(); else run.got = d; return d; }),
+          Math.max(0, end - Date.now()), null);
+        if (dev) return dev;
+        run.gaveUp = true;
+        if (run.got) run.got.link.close();             // (it came in just as the time ran out)
+        if (Date.now() < end) await sleep(Math.min(1000, end - Date.now()));
+      }
+      return null;
+    } finally { if (timer) clearInterval(timer); }
+  }
+
+  // serve read requests until the device asks for one of the finish addresses; stops early
+  // when the port disappears (lost: true) instead of waiting out idleMs. o: firstMs (no valid request at all by then:
+  // norequest; idleMs counts only from the first one), totalMs (a hard end: timeout), maxReq (more data requests:
+  // toomany, a device that loops), onWait(s) (no request yet, about once a second), resend (ms after the start with no
+  // request yet: UPGRADE again)
+  async serve(link, image, finishAddr, idleMs, onProgress, o = {}) {
+    const t0 = Date.now(), resend = [...(o.resend || [])];
+    let served = 0, seen = 0, last = t0, said = 0;
+    const out = (r) => {
+      if (link.dropped) this.log(`(${link.dropped} messages dropped: the device sent faster than they were read)`);
+      return { served, ...r };
+    };
+    for (;;) {
+      const now = Date.now();
+      if (o.totalMs && now - t0 > o.totalMs) return out({ finished: false, timeout: true });
+      if (!seen) {
+        if (o.firstMs && now - t0 > o.firstMs) return out({ finished: false, norequest: true });
+        const s = Math.floor((now - t0) / 1000);
+        if (o.onWait && s > said) { said = s; o.onWait(s); }
+        if (resend.length && now - t0 >= resend[0]) { resend.shift(); this.log("no request yet: UPGRADE again"); link.send(UPGRADE); }
+      }
+      const pkt = await link.read(seen ? 1000 : 250);
+      if (!pkt) {
+        if (link.lost) return out({ finished: false, lost: true });
+        if ((seen || !o.firstMs) && Date.now() - last > idleMs) return out({ finished: false });
+        continue;
+      }
+      const r = parseRequest(pkt);
+      if (!r) continue;
+      seen++; last = Date.now();
+      if (r.addr === 0xE0000000 || r.addr === 0xF0000000) {
+        link.send(response(r.addr, [...new TextEncoder().encode("success"), 0]));
+        if (r.addr === finishAddr) return out({ finished: true });
+        continue;
+      }
+      if (r.len > MAXDATA || r.addr + r.len > image.length) throw fail("badreq", `bad request ${r.addr.toString(16)}+${r.len}`);
+      if (o.maxReq && served >= o.maxReq) return out({ finished: false, toomany: true });
+      await sleep(10);
+      if (!link.send(response(r.addr, Array.from(image.subarray(r.addr, r.addr + r.len)), r.fl))) {
+        return out({ finished: false, lost: true });
+      }
+      served++;
+      if (onProgress) onProgress(served, r.addr);
+    }
+  }
+
+  // full install: running firmware -> loader -> new firmware. anyModel: the package may be for another model of the
+  // same keyboard (an SMK-37 Elite package on a unit that reports SMK-37 Pro); never an FM-1 one on an SMK, nor back
+  // opts.refuseOldStock: an M-Vave SMK firmware before V016 is refused before anything is sent (for our packages, not
+  // the return to the official firmware), also when the page did not identify the keyboard first
+  async install(image, product, onStep, anyModel = false, opts = {}) {
+    const step = onStep || (() => {}), t = this.t;
+    const dev = await this.find((id) => !IS_OTA(id));
+    if (!dev) throw fail("notfound", "FM-1 not found (USB cable, and no other app using it?)");
+    if (OTHER_SMK(dev.id)) { dev.link.close(); throw fail("other", `the keyboard runs a firmware with its own updater (${dev.id.text}): nothing was sent`, dev.id.text); }
+    if (opts.refuseOldStock && OLD_STOCK(dev.id)) {
+      dev.link.close();
+      throw fail("oldstock", `the keyboard runs M-Vave's firmware ${dev.id.text}: update it to V016 with M-Vave's updater first. Nothing was sent.`, dev.id.text);
+    }
+    const refusal = boardRefusal(dev.id.model, image, opts.fm1Confirmed);   // (the package's board, before anything)
+    if (refusal) { dev.link.close(); throw refusal; }
+    const [model] = product.split("_");
+    if (dev.id.model !== model && !(anyModel && sameKeyboard(dev.id.model, model))) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    step("start", dev.id.text);
+    dev.link.send(UPGRADE);
+    const t1 = Date.now();
+    await sleep(t.settle);
+    const s1 = await this.serve(dev.link, image, 0xE0000000, t.step1Idle, (n) => step("verify", n), { totalMs: t.step1Total });
+    if (s1.finished) { await sleep(40); dev.link.closeNow(); }              // (it restarts into its loader now: close
+    else if (s1.lost) dev.link.detach(); else dev.link.close();             //  before it leaves the USB)
+    this.log(`step 1: ${s1.served} requests in ${Math.round((Date.now() - t1) / 1000)} s: ${outcome(s1)}`);
+    if (s1.timeout) throw fail("timeout", `the keyboard's check of the package did not finish within ${t.step1Total / 1000} s (${s1.served} requests): nothing was written. Switch it off and on.`);
+    // some firmwares restart into their loader at once, without step 1: such a loader (ours, of this keyboard) goes on
+    const jumped = !s1.finished && s1.lost && s1.served === 0;
+    if (!s1.finished && !jumped) throw fail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
+    step("loader");
+    await gone(dev.link, 15000);                       // never probe a port while its device is still leaving the USB
+    await sleep(t.reboot);
+    const wait = jumped ? t.jumped : t.loader;
+    // (named ports first, as the reference installer; after 10 s the other ports too: Windows can name the loader
+    // generically, "USB MIDI Device")
+    const ota = await this.waitFor(IS_OTA, wait, (s) => step("wait", s + Math.round(t.reboot / 1000)), 10000);
+    if (jumped && !(ota && OUR_LOADER(ota.id) && sameKeyboard(ota.id.model.replace(/^ota-/i, ""), dev.id.model))) {
+      if (ota) ota.link.close();
+      throw fail(ota ? "foreign" : "lost", ota ? `the device restarted into the update mode of another firmware (${ota.id.text}): nothing was written`
+        : "the device was disconnected after 0 requests: nothing was written", ota ? ota.id.text : "");
+    }
+    if (!ota) throw fail("noloader", `the update loader did not appear within ${Math.round((wait + t.reboot) / 1000)} s. Close Chrome, open this page again, press Connect and the Install or Repair button again: it goes on where it stopped.`);
+    // one of our packages goes only to our loader, of this keyboard: never into another firmware's (the official one
+    // lays the image out its own way). An official package (identity _0NN, the way back) keeps the path it had.
+    const official = /_0\d\d$/.test(product);
+    if (!official && !(OUR_LOADER(ota.id) && sameKeyboard(ota.id.model.replace(/^ota-/i, ""), dev.id.model))) {
+      ota.link.close();
+      throw fail("foreign", `the device started the update mode of another firmware (${ota.id.text}): nothing was written. Switch it off and on.`, ota.id.text);
+    }
+    const s2 = await this.write(ota, image, step);
+    if (!s2.finished) throw this.writeFail(s2);
+    step("written");
+    step("reboot");
+    await gone(ota.link, 15000);
+    await sleep(t.reboot);
+    const back = await this.waitFor((id) => !IS_OTA(id), t.back, (s) => step("back", s));
+    if (!back) throw fail("noreturn", "the device did not come back: power-cycle it");
+    back.link.close();
+    if (back.id.text !== product) throw fail("mismatch", `installed, but the device reports ${back.id.text}`, back.id.text);
+    step("done", back.id.text);
+    return back.id.text;
+  }
+
+  // step 2 with the loader found by find()/waitFor(): the loader must ask within firstReq (our loader gets UPGRADE
+  // again meanwhile); the long idle timeout only once it writes; never more requests than three passes of the image
+  async write(ota, image, step) {
+    const t = this.t;
+    step = step || (() => {});
+    this.log(`loader ${ota.id.text} on "${ota.name}"`);
+    ota.link.send(UPGRADE);
+    const t2 = Date.now();
+    const s2 = await this.serve(ota.link, image, 0xF0000000, t.idle, (n) => step("write", n), {
+      firstMs: t.firstReq, maxReq: 3 * Math.ceil(image.length / MAXDATA) + 64,
+      resend: OUR_LOADER(ota.id) ? t.resend : [], onWait: (s) => { if (s >= 3) step("noreq", s); } });
+    if (s2.finished || s2.lost) ota.link.detach(); else ota.link.close();   // (finished: it restarts into the new firmware)
+    this.log(`step 2: ${s2.served} requests in ${Math.round((Date.now() - t2) / 1000)} s: ${outcome(s2)}`);
+    return s2;
+  }
+
+  // the error for a write that did not finish
+  writeFail(s2) {
+    if (s2.norequest) return fail("norequest", `the update loader appeared but did not ask for data within ${this.t.firstReq / 1000} s: nothing was written. Replug the USB cable and press Install again.`);
+    if (s2.toomany) return fail("toomany", `the loader kept asking (${s2.served} requests, more than a write needs): stopped. Replug and press Install again.`);
+    return fail(s2.lost ? "lost" : "stopped", `the loader ${s2.lost ? "was disconnected" : "stopped"} after ${s2.served} requests. Replug and press Install again to resume.`);
+  }
+
+  // resume: the device is already in update mode (loader) -> true when the write finished. Only SLOOP's
+  // own loader is resumed, except for the return to the official firmware (opts.product: the official
+  // package, its identity checked once the FM-1 is back, after Felucca 1.0): that one is the official
+  // loader's own image, as M-UPGRADE would write it. opts.package: the identity of the package being
+  // written; the loader's model must match it (or opts.product's) by install()'s rule (the same model, or with
+  // opts.anyModel another model of the same keyboard), and without either identity nothing is written
+  // SLOOP Pro: opts.verify (with opts.package): after the write, the keyboard is waited for and its identity checked,
+  // as install() does (resolves to the identity)
+  async resume(image, onStep, opts = {}) {
+    const ota = await this.find(IS_OTA, true);
+    if (!ota) return false;
+    if (!OUR_LOADER(ota.id) && !opts.product) {
+      ota.link.close();
+      throw fail("foreign", `the FM-1 is in the update mode of another firmware (${ota.id.text}): finish that update with its own updater`, ota.id.text);
+    }
+    const want = opts.product || opts.package || "";
+    const refusal = boardRefusal(ota.id.model, image, opts.fm1Confirmed);
+    if (refusal) { ota.link.close(); throw refusal; }
+    const [lm, pm] = [ota.id.model.replace(/^ota-/i, ""), want.split("_")[0]];
+    if (!want || (lm !== pm && !(opts.anyModel && sameKeyboard(lm, pm)))) {
+      ota.link.close();
+      throw fail("model", `the device is in the update mode of ${ota.id.text}, the package is for ${want || "an unknown model"}`, ota.id.text);
+    }
+    const step = onStep || (() => {});
+    const s2 = await this.write(ota, image, step);
+    if (!s2.finished) { if (s2.norequest || s2.toomany) throw this.writeFail(s2); return false; }
+    step("written");
+    if (opts.verify && !opts.product) {
+      step("reboot");
+      await gone(ota.link, 15000);
+      await sleep(this.t.reboot);
+      const back = await this.waitFor((id) => !IS_OTA(id), this.t.back, (s) => step("back", s));
+      if (!back) throw fail("noreturn", "the keyboard did not come back after the write: switch it off and on");
+      back.link.close();
+      if (back.id.text !== want) throw fail("mismatch", `written, but the keyboard reports ${back.id.text}`, back.id.text);
+      step("done", back.id.text);
+      return back.id.text;
+    }
+    if (opts.product) {
+      step("reboot");
+      await gone(ota.link, 15000);
+      await sleep(this.t.reboot);
+      const back = await this.waitFor((id) => !IS_OTA(id), this.t.back, (s) => step("back", s));
+      if (!back) throw fail("noreturn", "the FM-1 did not come back after the write: power-cycle it");
+      back.link.close();
+      if (back.id.text !== opts.product) throw fail("mismatch", `written, but the FM-1 reports ${back.id.text}`, back.id.text);
+      step("done", back.id.text);
+    }
+    return true;
+  }
+}
+
+const FM1_PORT = PORT_RE;   // (the older name, for the pages and tests that import it)
+
+// SLOOP Pro: one package per model (SMK-37 Pro, SMK-37 Elite, MKE-P37). The one for the connected keyboard, from its
+// identity (running, or its update loader's): the same model by name -> { product, anyModel: false }; a Starrykey 37
+// Play or an SMK-37 that does not name its model ("SMK-37+VA") -> the SMK-37 Pro one, { anyModel: true }; an FM-1,
+// another device or ChanceTheMaker's SMK firmwares ("SMK-37_9NN", their own updater) -> null (as fm1_install.py
+// pick_package)
+function pickPackage(deviceText, products) {
+  if (OTHER_SMK({ text: deviceText })) return null;
+  const dm = deviceText.split("_")[0].replace(/^ota-/i, "").toLowerCase();
+  const same = products.find((p) => p.split("_")[0].toLowerCase() === dm);
+  if (same) return { product: same, anyModel: false };
+  const kin = products.filter((p) => sameKeyboard(dm.toUpperCase(), p.split("_")[0]));
+  const pro = kin.find((p) => /^SMK-37 Pro_/i.test(p));
+  if (pro) return { product: pro, anyModel: true };
+  return kin.length === 1 ? { product: kin[0], anyModel: true } : null;
+}
+
+// ---- the package's board: read from the package itself, never from an identity ----
+// The FM-1's and the SMK-37's official packages share the head (0x0-0x3FFF) and the update loader, and a third-party
+// FM-1 firmware running on an SMK-37 reports an FM-1 identity: no identity tells the board. Installed on an SMK-37,
+// the FM-1's stock package erases the factory calibration (BTIF / USRTRIM 0xC0000-0xC1FFF) and writes the FM-1's
+// USR image over the SMK's (0xF4000). So the board comes from the package: flash.bin's length (SMK-37 0x9D000,
+// FM-1 0x93000), its region table (app offset 0x60 = flash 0x4060-0x411F, SFC-enciphered with the chip key 0x980F:
+// BTIF and USR at 0xC0000 / 0xF4000 on the SMK-37, 0xE9000 / 0xEA000 on the FM-1) and a USR image's place (UFW
+// entry 50).
+const FM1_STOCK_MSG = "This is the FM-1 firmware. Your keyboard is an SMK-37? Don't install it.";
+const FM1_CONFIRM_MSG = FM1_STOCK_MSG + " On an SMK-37 it erases the keyboard's calibration. Install it only on an FM-1." +
+  " SMK-37 owners whose keyboard runs an FM-1 firmware (it then reports an FM-1): use the SMK-37 package from M-Vave, never this one.";
+const LAYOUT = { smk: { len: 0x9D000, btif: 0xC0000, usr: [0xF4000, 0xA000] }, fm1: { len: 0x93000, btif: 0xE9000, usr: [0xEA000, 0x12000] } };
+const LOADER_MARK = [..."FELUCCA-LOADER-1"].map((c) => c.charCodeAt(0));   // our update loaders (crt0_ldr.S)
+const SMK_MODEL = /^(ota-)?(SMK-37([ +].*)?|MKE-P37|STARRYKEY-37.*)$/i;      // an identity of the SMK-37 keyboard
+const le = (a, o, n) => { let v = 0; for (let i = n - 1; i >= 0; i--) v = v * 256 + a[o + i]; return v; };
+function ufwCipher(b) {                    // the UFW header cipher (key 0xFFFF, its own inverse)
+  const out = Uint8Array.from(b);
+  for (let i = 0, k = 0xFFFF; i < out.length; i++) { out[i] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; }
+  return out;
+}
+function sfcCipher(b, base, key = 0x980F) {   // the JieLi SFC cipher of the app area (32-byte blocks, its own inverse)
+  const out = Uint8Array.from(b);
+  for (let i = 0; i < out.length; i += 32) {
+    let k = (key ^ ((base + i) >>> 2)) & 0xFFFF;
+    for (let j = i; j < i + 32 && j < out.length; j++) { out[j] ^= k & 0xFF; k = ((k << 1) ^ (k & 0x8000 ? 0x1021 : 0)) & 0xFFFF; }
+  }
+  return out;
+}
+// the package's files: { type, off, size, at, len } (at / len: where a USR image goes)
+function packageFiles(image) {
+  if (image.length < 0x40) return [];
+  const h = ufwCipher(image.subarray(0, 0x40)), n = le(h, 8, 2), out = [];
+  for (let i = 0; i < n && i < 11 && 0x90 + i * 0x50 <= image.length; i++) {
+    const e = ufwCipher(image.subarray(0x40 + i * 0x50, 0x90 + i * 0x50));
+    out.push({ type: le(e, 0, 2), off: le(e, 8, 4), size: le(e, 12, 4), at: le(e, 0x1C, 4), len: le(e, 0x20, 4) });
+  }
+  return out;
+}
+// flash.bin's region table: { VM: [address, size], PRCT, BTIF, USR, ... }
+function regionTable(flash) {
+  const t = {};
+  if (flash.length < 0x4120) return t;
+  const d = sfcCipher(flash.subarray(0x4060, 0x4120), 0x60);
+  for (let r = 0; r < 0xC0; r += 32) {
+    let name = "";
+    for (let i = 16; i < 32 && d[r + i] > 0x20 && d[r + i] < 0x7F; i++) name += String.fromCharCode(d[r + i]);
+    if (name) t[name] = [le(d, r + 4, 4), le(d, r + 8, 4)];
+  }
+  return t;
+}
+// "smk", "fm1" (any sign of the FM-1's layout) or null (not a package, or another layout)
+function packageBoard(image) {
+  const files = packageFiles(image), fl = files.find((f) => f.type === 0);
+  if (!fl || fl.off + fl.size > image.length) return null;
+  const rt = regionTable(image.subarray(fl.off, fl.off + fl.size)), usr = files.filter((f) => f.type === 50);
+  const S = LAYOUT.smk, F = LAYOUT.fm1;
+  if (fl.size === S.len && rt.BTIF && rt.BTIF[0] === S.btif && rt.USR && rt.USR[0] === S.usr[0] && rt.USR[1] === S.usr[1] &&
+      usr.every((u) => u.at === S.usr[0] && u.len === S.usr[1])) return "smk";
+  if (fl.size === F.len || (rt.BTIF && rt.BTIF[0] === F.btif) || (rt.USR && rt.USR[0] === F.usr[0]) || usr.some((u) => u.at === F.usr[0])) return "fm1";
+  return null;
+}
+function hasOurLoader(image) {
+  const m = LOADER_MARK;
+  for (let i = image.indexOf(m[0]); i >= 0 && i + m.length <= image.length; i = image.indexOf(m[0], i + 1)) {
+    let j = 1;
+    while (j < m.length && image[i + j] === m[j]) j++;
+    if (j === m.length) return true;
+  }
+  return false;
+}
+// a stock package (M-Vave's, or any without our update loader): one with flash.bin whose loader is not ours
+const isStockPackage = (image) => packageFiles(image).some((f) => f.type === 0) && !hasOurLoader(image);
+// null, or why image must not be written to a device that reports model (an Error with a code, nothing sent yet):
+// "fm1pkg" an FM-1 layout for an SMK-37; "board" a stock package not laid out for the SMK-37 on one; "fm1confirm" a
+// stock package not laid out for the SMK-37 on a device that reports another model (an FM-1, or an SMK-37 under an
+// FM-1 firmware): only when the user confirmed the device is an FM-1 (fm1Confirmed)
+function boardRefusal(model, image, fm1Confirmed = false) {
+  const board = packageBoard(image), smk = SMK_MODEL.test(model);
+  if (smk && board === "fm1") return fail("fm1pkg", `${FM1_STOCK_MSG} (The device reports ${model}.) Nothing was sent.`);
+  if (!isStockPackage(image) || board === "smk") return null;
+  if (smk) return fail("board", `this package is not laid out for the SMK-37 (flash.bin, region table): nothing was sent`);
+  return fm1Confirmed ? null : fail("fm1confirm", FM1_CONFIRM_MSG);
+}
+
+const $ = (id) => document.getElementById(id);
+const TEXT = {
+  fr: {
+    h1: "Firmware pour le clavier M-VAVE SMK-37",
+    lead: "Clipper Pro : le synthétiseur Clipper sur le SMK-37. 23 moteurs, 407 sons, HYBRID (3 oscillateurs, 2 filtres, une matrice), arpégiateur, séquenceur pas à pas — avec 37 touches dynamiques, 16 pads RGB (notes et sons), 4 faders (macros, enveloppe, timbre, mix), les molettes, la pédale de sustain et une sortie MIDI TRS.",
+    t1: "touches dynamiques, + 10 notes", t2: "pads RGB : notes, sons, pas", t3: "faders : macros, ADSR, timbre, mix", t4: "USB et TRS, molettes, pédale",
+    before: "Avant d'installer",
+    b1: "Branchez le clavier directement à l'ordinateur avec un câble USB de données. Chrome ou Edge.",
+    b2: "Fermez les autres applications et onglets qui utilisent le MIDI (DAW, éditeurs, M-UPGRADE).",
+    b3: "Sauvegarde conseillée : une copie complète de la flash (1 Mo) avant la première installation (voir CLIPPER-PRO.md, Sécurité). Le firmware n'écrit jamais l'étalonnage de l'usine ni la zone d'origine.",
+    modelL: "Modèle", auto: "Automatique (recommandé)",
+    risk: "J'ai compris : firmware non officiel, sans garantie, installé à mes risques. Je ne débranche pas le câble pendant l'écriture.",
+    install: "Installer Clipper Pro",
+    editor: "Éditeur (sons, HYBRID, séquenceur, sauvegardes)",
+    backT: "Revenir au firmware M-VAVE",
+    back: "Sauvegardez d'abord vos sons avec l'éditeur (onglet Backup). Puis installez le firmware officiel de votre modèle avec M-UPGRADE, l'outil officiel de M-VAVE. Clipper Pro ne touche pas à l'étalonnage : le clavier revient comme avant.",
+    rescueT: "Si quelque chose tourne mal",
+    rescue: "Si l'écriture s'arrête : rebranchez le câble et appuyez de nouveau sur Installer — le clavier reste en mode mise à jour et l'écriture reprend. Si Clipper Pro ne démarre pas : maintenez OCTAVE− à l'allumage (CLIPPER PRO USB RESCUE) puis installez à nouveau. Sous Windows, si ça reste bloqué à « Passage en mode mise à jour » : fermez complètement le navigateur, débranchez / rebranchez le clavier et lancez INSTALLER-USB-PRO.bat (Windows laisse le port MIDI au navigateur pendant le redémarrage du clavier).",
+    other2: "Clavier sous le firmware « Sloop SMK » de ChanceTheMaker (identité SMK-37_9xx) ? Il n'accepte que ses propres paquets : revenez d'abord au firmware M-VAVE (sa page de restauration ou M-UPGRADE), puis installez Clipper Pro.",
+    nomidi: "Ce navigateur ne peut pas le faire. Ouvrez la page dans Chrome ou Edge.", loadfail: "Chargement impossible : ",
+    ready: "Prêt : Clipper Pro ", start: "Démarrage", verify: "Vérification", loader: "Passage en mode mise à jour", write: "Écriture",
+    waitota: "Le clavier redémarre en mode mise à jour (ne rien débrancher)… s : ", noreq: "Le mode mise à jour ne demande rien encore… s : ", backwait: "Redémarrage… s : ",
+    reboot: "Redémarrage", done: "Terminé : le clavier tourne ", stopped: "Arrêté. Rebranchez le câble USB et appuyez de nouveau sur Installer.",
+    error: "Erreur : ", needRisk: "Cochez d'abord la case ci-dessus.",
+    denied: "L'accès MIDI (SysEx) a été refusé. Autorisez le MIDI dans les paramètres du site (barre d'adresse) et réessayez.",
+    notfound: "Clavier introuvable. Vérifiez le câble USB (un câble de données), fermez les autres applications MIDI, et réessayez.",
+    other: "Ce clavier tourne sous un firmware SMK de ChanceTheMaker (Felucca SMK, Sloop SMK, Melodee SMK, Doom), qui n'accepte que ses propres paquets. Rien n'a été écrit. Revenez d'abord au firmware M-VAVE, puis installez Clipper Pro.",
+    fm1: "L'appareil branché est un FM-1. Clipper Pro est pour le SMK-37 ; pour le FM-1, utilisez Clipper (isod89.github.io/clipper-fm1). Rien n'a été écrit.",
+    nopkg: "Aucun paquet Clipper Pro pour cet appareil : ",
+    model: "Le modèle ne correspond pas : ",
+    lost: "La connexion USB a été perdue. Rebranchez et réessayez.",
+    noloader: "Le clavier en mode mise à jour est introuvable par Chrome. N'éteignez pas le clavier : fermez Chrome complètement (toutes les fenêtres), rouvrez cette page et appuyez de nouveau sur Installer : ça reprend où ça s'est arrêté.",
+    noreturn: "Le clavier n'est pas revenu. Éteignez-le et rallumez-le.",
+    mismatch: "Écrit, mais le clavier annonce une autre version : ",
+    foreign: "Le clavier est en mode mise à jour d'un autre firmware. Terminez cette mise à jour avec son propre outil (M-UPGRADE), puis réessayez : ",
+    oldstock: "Ce clavier a un firmware M-VAVE plus ancien que V016 : mettez-le d'abord à jour en V016 avec M-UPGRADE. Rien n'a été envoyé : ",
+    timeout: "La vérification du paquet par le clavier n'a pas fini à temps : rien n'a été écrit. Éteignez-le et rallumez-le, puis réessayez.",
+    norequest: "Le mode mise à jour est apparu mais n'a rien demandé : rien n'a été écrit. Rebranchez le câble et réessayez.",
+    toomany: "Le clavier redemandait sans fin : arrêté. Rebranchez le câble et réessayez.",
+    badreq: "Le clavier a demandé des données hors du paquet : arrêté. Rechargez la page et réessayez : ",
+    fm1confirm: "Ce paquet est pour le FM-1 : rien n'a été écrit.",
+    fm1pkg: "Ce paquet est pour le FM-1 : rien n'a été écrit.", board: "Ce paquet n'est pas pour cette carte : rien n'a été écrit.",
+    badpkg: "Le fichier à installer est endommagé. Rechargez la page.",
+    leave: "Écriture en cours. Ne fermez pas la page.",
+    device: "Appareil : ", pkgFor: " → paquet ",
+    license: "GPL-3.0, sans garantie. Source :",
+  },
+  en: {
+    h1: "Firmware for the M-VAVE SMK-37 keyboard",
+    lead: "Clipper Pro: the Clipper synthesizer on the SMK-37. 23 engines, 407 sounds, HYBRID (three oscillators, two filters, a matrix), an arpeggiator, a step sequencer — with 37 velocity keys, 16 RGB pads (notes and sounds), 4 faders (macros, envelope, tone, mix), the wheels, a sustain pedal and a TRS MIDI out.",
+    t1: "velocity keys, + 10 notes", t2: "RGB pads: notes, sounds, steps", t3: "faders: macros, ADSR, tone, mix", t4: "USB and TRS, wheels, pedal",
+    before: "Before you install",
+    b1: "Connect the keyboard straight to the computer with a USB data cable. Chrome or Edge.",
+    b2: "Close the other apps and tabs that use MIDI (DAWs, editors, M-UPGRADE).",
+    b3: "Recommended: a full 1 MiB flash backup before the first install (CLIPPER-PRO.md, Safety). The firmware never writes the factory calibration or the stock area.",
+    modelL: "Model", auto: "Automatic (recommended)",
+    risk: "I understand: unofficial firmware, no warranty, installed at my own risk. I will not unplug the cable while it writes.",
+    install: "Install Clipper Pro",
+    editor: "Editor (sounds, HYBRID, sequencer, backups)",
+    backT: "Back to the M-VAVE firmware",
+    back: "First back up your sounds with the editor (Backup tab). Then install your model's official firmware with M-UPGRADE, M-VAVE's own updater. Clipper Pro never touches the calibration: the keyboard comes back as it was.",
+    rescueT: "If something goes wrong",
+    rescue: "If the write stops: replug the cable and press Install again — the keyboard stays in update mode and the write resumes. If Clipper Pro does not start: hold OCTAVE− while switching on (CLIPPER PRO USB RESCUE), then install again. On Windows, if it stays at “Switching to update mode”: close the browser completely, replug the keyboard and run INSTALLER-USB-PRO.bat (Windows leaves the MIDI port with the browser while the keyboard restarts).",
+    other2: "Keyboard running ChanceTheMaker's “Sloop SMK” (identity SMK-37_9xx)? It takes only its own packages: go back to the M-VAVE firmware first (its restore page or M-UPGRADE), then install Clipper Pro.",
+    nomidi: "This browser cannot do it. Open the page in Chrome or Edge.", loadfail: "Could not load: ",
+    ready: "Ready: Clipper Pro ", start: "Starting", verify: "Verifying", loader: "Switching to update mode", write: "Writing",
+    waitota: "The keyboard restarts into update mode (unplug nothing)… s: ", noreq: "The update mode has not asked for anything yet… s: ", backwait: "Restarting… s: ",
+    reboot: "Restarting", done: "Done: the keyboard runs ", stopped: "Stopped. Replug the USB cable and press Install again.",
+    error: "Error: ", needRisk: "Tick the box above first.",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and try again.",
+    notfound: "Keyboard not found. Check the USB cable (a data cable), close other apps that use MIDI, and try again.",
+    other: "This keyboard runs one of ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom), which take only their own packages. Nothing was written. Go back to the M-VAVE firmware first, then install Clipper Pro.",
+    fm1: "The connected device is an FM-1. Clipper Pro is for the SMK-37; for the FM-1 use Clipper (isod89.github.io/clipper-fm1). Nothing was written.",
+    nopkg: "No Clipper Pro package for this device: ",
+    model: "The model does not match: ",
+    lost: "The USB connection was lost. Replug it and try again.",
+    noloader: "Chrome does not see the keyboard in update mode. Do not switch the keyboard off: close Chrome completely (every window), open this page again and press Install again: it goes on where it stopped.",
+    noreturn: "The keyboard did not come back. Switch it off and on.",
+    mismatch: "Written, but the keyboard reports another version: ",
+    foreign: "The keyboard is in the update mode of another firmware. Finish that update with its own updater (M-UPGRADE), then try again: ",
+    oldstock: "This keyboard runs an M-VAVE firmware older than V016: update it to V016 with M-UPGRADE first. Nothing was sent: ",
+    timeout: "The keyboard's check of the package did not finish in time: nothing was written. Switch it off and on, then try again.",
+    norequest: "The update mode appeared but asked for nothing: nothing was written. Replug the cable and try again.",
+    toomany: "The keyboard kept asking: stopped. Replug the cable and try again.",
+    badreq: "The keyboard asked for data outside the package: stopped. Reload the page and try again: ",
+    fm1confirm: "This package is for the FM-1: nothing was written.",
+    fm1pkg: "This package is for the FM-1: nothing was written.", board: "This package is not for this board: nothing was written.",
+    badpkg: "The file to install is damaged. Reload the page.",
+    leave: "Writing. Do not close the page.",
+    device: "Device: ", pkgFor: " → package ",
+    license: "GPL-3.0, no warranty. Source:",
+  },
+  ja: {
+    h1: "M-VAVE SMK-37 キーボード用ファームウェア",
+    lead: "Clipper Pro：SMK-37 で動く Clipper シンセサイザー。23 エンジン、407 音色、HYBRID（オシレーター 3、フィルター 2、マトリクス）、アルペジエーター、ステップシーケンサー。ベロシティ付き 37 鍵、RGB パッド 16（ノートと音色）、フェーダー 4（マクロ・エンベロープ・音色・ミックス）、ホイール、サスティンペダル、TRS MIDI 出力。",
+    t1: "ベロシティ鍵盤、＋10 ノート", t2: "RGB パッド：ノート・音色・ステップ", t3: "フェーダー：マクロ・ADSR・音色・ミックス", t4: "USB と TRS、ホイール、ペダル",
+    before: "インストールの前に",
+    b1: "キーボードを USB データケーブルでパソコンに直接つないでください。Chrome か Edge。",
+    b2: "MIDI を使う他のアプリやタブ（DAW、エディタ、M-UPGRADE）を閉じてください。",
+    b3: "初回の前に 1 MiB のフラッシュ全体のバックアップをおすすめします（CLIPPER-PRO.md、安全）。このファームウェアは工場のキャリブレーションや純正領域を書き換えません。",
+    modelL: "モデル", auto: "自動（おすすめ）",
+    risk: "非公式・無保証のファームウェアを自己責任で入れることを理解しました。書き込み中はケーブルを抜きません。",
+    install: "Clipper Pro をインストール",
+    editor: "エディタ（音色、HYBRID、シーケンサー、バックアップ）",
+    backT: "M-VAVE のファームウェアに戻す",
+    back: "まずエディタで音色をバックアップ（Backup タブ）。そのあと M-VAVE 公式のアップデーター M-UPGRADE でモデルの公式ファームウェアを入れてください。キャリブレーションはそのままです。",
+    rescueT: "うまくいかないとき",
+    rescue: "書き込みが止まったら：ケーブルを挿し直して、もう一度インストールを押してください（書き込みモードのまま再開します）。起動しないとき：OCTAVE− を押しながら電源を入れ（CLIPPER PRO USB RESCUE）、もう一度インストール。 Windows で「書き込みモードに切り替え中」のまま止まるとき：ブラウザを完全に閉じ、キーボードを挿し直して INSTALLER-USB-PRO.bat を実行してください。",
+    other2: "ChanceTheMaker の「Sloop SMK」（SMK-37_9xx）が入っている場合：その専用パッケージしか受け付けません。先に M-VAVE のファームウェアに戻してから Clipper Pro を入れてください。",
+    nomidi: "このブラウザでは使えません。Chrome か Edge で開いてください。", loadfail: "読み込めませんでした: ",
+    ready: "準備完了：Clipper Pro ", start: "開始します", verify: "確認中", loader: "書き込みモードに切り替え中", write: "書き込み中",
+    waitota: "書き込みモードで再起動中（抜かないで）… 秒: ", noreq: "書き込みモードからの要求待ち… 秒: ", backwait: "再起動中… 秒: ",
+    reboot: "再起動中", done: "完了：", stopped: "途中で止まりました。USB を挿し直してもう一度押してください。",
+    error: "エラー: ", needRisk: "先に上のチェックを入れてください。",
+    denied: "MIDI（SysEx）の使用が許可されませんでした。サイト設定で MIDI を許可して、もう一度押してください。",
+    notfound: "キーボードが見つかりません。USB ケーブルを確かめ、MIDI を使う他のアプリを閉じてから、もう一度押してください。",
+    other: "このキーボードは ChanceTheMaker の SMK ファームウェアで動いています。専用パッケージしか受け付けないため、何も書き込んでいません。先に M-VAVE のファームウェアに戻してください。",
+    fm1: "接続されているのは FM-1 です。Clipper Pro は SMK-37 用です。FM-1 には Clipper（isod89.github.io/clipper-fm1）を。何も書き込んでいません。",
+    nopkg: "この機器用の Clipper Pro パッケージがありません: ",
+    model: "モデルが合いません: ",
+    lost: "USB の接続が切れました。挿し直してもう一度押してください。",
+    noloader: "Chrome から書き込みモードのキーボードが見えません。電源は切らずに、Chrome を完全に閉じてこのページを開き直し、もう一度押してください（続きから再開します）。",
+    noreturn: "キーボードが戻ってきません。電源を入れ直してください。",
+    mismatch: "書き込みは終わりましたが、別のバージョンを報告しています: ",
+    foreign: "キーボードは別のファームウェアの書き込みモードです。そのアップデーター（M-UPGRADE）で終えてから、もう一度: ",
+    oldstock: "このキーボードの M-VAVE ファームウェアは V016 より古いです。先に M-UPGRADE で V016 に更新してください。何も送っていません: ",
+    timeout: "キーボードのパッケージ確認が時間内に終わりませんでした。何も書き込んでいません。電源を入れ直してもう一度。",
+    norequest: "書き込みモードになりましたが要求がありません。何も書き込んでいません。挿し直してもう一度。",
+    toomany: "キーボードが要求を繰り返しました。止めました。挿し直してもう一度。",
+    badreq: "キーボードがパッケージ外のデータを要求しました。止めました。再読み込みしてもう一度: ",
+    fm1confirm: "これは FM-1 用のパッケージです。何も書き込んでいません。",
+    fm1pkg: "これは FM-1 用のパッケージです。何も書き込んでいません。", board: "このボード用のパッケージではありません。何も書き込んでいません。",
+    badpkg: "インストールするファイルが壊れています。ページを再読み込みしてください。",
+    leave: "書き込み中です。ページを閉じないでください。",
+    device: "機器: ", pkgFor: " → パッケージ ",
+    license: "GPL-3.0、無保証。ソース:",
+  },
+};
+const pickLang = () => { const l = (navigator.language || "en").toLowerCase(); return l.startsWith("fr") ? "fr" : l.startsWith("ja") ? "ja" : "en"; };
+let lang = pickLang();
+try { lang = localStorage.getItem("clipper-pro-lang") || lang; } catch (_) {}
+const t = (k) => (TEXT[lang] && TEXT[lang][k]) ?? TEXT.en[k] ?? k;
+let lastKey = null, lastArg = "", lastCls = "";
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach((e) => { e.textContent = t(e.dataset.t); });
+  document.querySelectorAll(".lang").forEach((b) => b.setAttribute("aria-current", String(b.dataset.l === lang)));
+  if (lastKey) setStatus(t(lastKey) + lastArg, lastCls);
+}
+document.querySelectorAll(".lang").forEach((b) => b.addEventListener("click", () => {
+  lang = b.dataset.l;
+  try { localStorage.setItem("clipper-pro-lang", lang); } catch (_) {}
+  applyLang();
+}));
+applyLang();
+function setStatus(txt, cls = "") { $("status").textContent = txt; $("status").className = cls; }
+const sayK = (k, arg = "", cls = "") => { lastKey = k; lastArg = arg; lastCls = cls; setStatus(t(k) + arg, cls); };
+const log = (s) => { $("log").textContent += s + "\n"; $("log").scrollTop = 1e9; };
+const meta = {"version": "1.2 EXP", "pkgs": [{"product": "SMK-37 Pro_900", "pkg": "../../firmware/clipper-pro-1.2-EXP.fwsc", "sha256": "9d43223db1f4834e37f62be47384d3b1126249b343560ca391256a3ba1c79d6d"}, {"product": "SMK-37 Elite_900", "pkg": "../../firmware/clipper-pro-elite-1.2-EXP.fwsc", "sha256": "ea5657a82a46a9c6aeba33856442c944a63b010cabd21146d80b241c4550a88a"}, {"product": "MKE-P37_900", "pkg": "../../firmware/clipper-pro-mke-1.2-EXP.fwsc", "sha256": "f203148db07e97eb4c8351c20de3e21dd2a423c15f51f414345976c2346d24bd"}]};   // { version, pkgs: [{ product, pkg, sha256 }] }: one package per model
+const images = new Map();                          // product -> logical image
+let writing = false;
+const lockAll = (on) => {
+  writing = on;
+  $("go").disabled = on || !images.size;
+  document.querySelectorAll("input").forEach((i) => { i.disabled = on; });
+};
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+(async () => {
+  if (!navigator.requestMIDIAccess) { sayK("nomidi", "", "bad"); return; }
+  try {
+    /* never the browser's old copy: no-cache asks the server first, a mismatch is fetched once more past the cache;
+       a package whose SHA-256 or identity is not the one this page was made with is never offered */
+    const sha = async (b) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", b))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const check = self.crypto && crypto.subtle;
+    for (const p of meta.pkgs) {
+      const get = async (cache) => {
+        const r = await fetch(p.pkg, { cache });
+        if (!r.ok) throw new Error(`${p.pkg}: HTTP ${r.status}`);
+        return new Uint8Array(await r.arrayBuffer());
+      };
+      let pkg = await get("no-cache");
+      if (check && (await sha(pkg)) !== p.sha256) pkg = await get("reload");
+      if (productOf(pkg) !== p.product) { sayK("badpkg", ` (${p.product})`, "bad"); return; }
+      if (check) {
+        const h = await sha(pkg);
+        if (h !== p.sha256) { sayK("badpkg", ` (${p.product})`, "bad"); log(`${p.product}: sha256 ${h}, expected ${p.sha256}`); return; }
+      }
+      images.set(p.product, logicalImage(pkg));
+    }
+    sayK("ready", `${meta.version} (${[...images.keys()].map((k) => k.split("_")[0]).join(", ")})`);
+    lockAll(writing);
+  } catch (e) { sayK("loadfail", e.message, "bad"); }
+})();
+
+let total = 74 + 1256;                             /* reads: step 1, step 2 (head + the SMK-37's app area) */
+const step = (k, a) => {
+  log(`${k} ${a ?? ""}`);
+  if (k === "start") sayK("start");
+  if (k === "verify") { sayK("verify"); $("bar").value = Math.min(100, (a / total) * 100); }
+  if (k === "loader") sayK("loader");
+  if (k === "write") { sayK("write"); $("bar").value = Math.min(100, ((74 + a) / total) * 100); }
+  if (k === "wait") sayK("waitota", a);
+  if (k === "noreq") sayK("noreq", a);
+  if (k === "reboot") sayK("reboot");
+  if (k === "back") sayK("backwait", a);
+  if (k === "done") { $("bar").value = 100; sayK("done", a || "", "good"); }
+};
+const failed = (e) => {
+  if (e && e.code && TEXT.en[e.code]) sayK(e.code, e.code === "other" || e.code === "fm1" ? "" : e.detail || "", "bad");
+  else sayK("error", e && e.message, "bad");
+  log(String(e && e.stack || e));
+};
+const pfail = (code, detail = "") => { const e = new Error(code); e.code = code; e.detail = detail; return e; };
+const model = () => document.querySelector('input[name="model"]:checked').value;
+/* the package for this device: by its identity (Automatic), or the model ticked (another model of the same keyboard
+   only: install() and resume() refuse an FM-1 or another device whatever is ticked) */
+function choose(idText) {
+  if (OTHER_SMK({ text: idText })) throw pfail("other");
+  const dm = idText.split("_")[0].replace(/^ota-/i, "");
+  if (/^FM-1$/i.test(dm)) throw pfail("fm1");
+  const products = [...images.keys()];
+  if (model() !== "auto") {
+    const p = products.find((x) => x.split("_")[0] === model());
+    if (!p) throw pfail("nopkg", model());
+    return { product: p, anyModel: true };
+  }
+  const c = pickPackage(idText, products);
+  if (!c) throw pfail("nopkg", idText);
+  return c;
+}
+
+let midi = null;
+$("go").addEventListener("click", async () => {
+  if (writing) return;
+  if (!$("risk").checked) { sayK("needRisk", "", "bad"); return; }
+  lockAll(true);
+  $("bar").value = 0;
+  /* one MIDI access for the page's whole life (as the reference installer): a new one per click leaves the ports of
+     the old one to the garbage collector, and Windows' Chrome then sees a port it cannot open */
+  try { midi = midi || await navigator.requestMIDIAccess({ sysex: true }); }
+  catch (e) { sayK("denied", "", "bad"); lockAll(false); return; }
+  try {
+    const up = new Updater(midi, log);
+    /* the keyboard on its named port, running or left in update mode; a loader under a generic name: looked for too */
+    const dev = (await up.find(null)) || (await up.find((id) => /^ota-/i.test(id.model), true));
+    const ota = dev && /^ota-/i.test(dev.id.model) ? dev : null;   /* left in update mode: the write resumes */
+    if (!dev) throw pfail("notfound", up.seen());
+    dev.link.close();
+    const c = choose(dev.id.text);
+    const image = images.get(c.product);
+    total = 74 + Math.ceil(image.length / 512);
+    $("device").textContent = t("device") + dev.id.text + t("pkgFor") + c.product;
+    if (ota) {                                     /* the write finished, then the keyboard is checked as install() does */
+      if (!(await up.resume(image, step, { package: c.product, anyModel: c.anyModel, verify: true }))) throw pfail("stopped");
+    } else await up.install(image, c.product, step, c.anyModel, { refuseOldStock: true });
+  } catch (e) { failed(e); }
+  lockAll(false);
+});
+</script>
+</body>
+</html>
