@@ -1,6 +1,6 @@
 # Clipper Pro: Clipper on the M-VAVE SMK-37
 
-Clipper Pro is Clipper 1.1, the synthesizer firmware for the FM-1, on the M-VAVE SMK-37: the SMK-37 Pro (and the
+Clipper Pro 1.2 is Clipper 1.1, the synthesizer firmware for the FM-1, with SLOOP 2.8.3's fixes, on the M-VAVE SMK-37: the SMK-37 Pro (and the
 Starrykey 37 Play), the SMK-37 Elite and the MKE-P37 are one keyboard, with one package each. The board layer
 (keys, pads, faders, wheels, the screen, the flash map and the update path) is genkigenki's
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37). Everyone who made it possible:

@@ -1,6 +1,6 @@
 # Clipper Pro — démarrage rapide (SMK-37)
 
-Clipper Pro, c'est le synthétiseur Clipper 1.1 sur le clavier M-VAVE SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play).
+Clipper Pro 1.2, c'est le synthétiseur Clipper 1.1 (avec les correctifs de SLOOP 2.8.3) sur le clavier M-VAVE SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play).
 Le manuel de Clipper ([DEMARRAGE-RAPIDE-FR.md](DEMARRAGE-RAPIDE-FR.md)) reste valable : chaque commande du FM-1 a sa
 place sur le SMK-37. Les commandes en plus (pads, faders, molettes, pédale, touches extrêmes) jouent le synthé.
 La référence complète : [CLIPPER-PRO.md](CLIPPER-PRO.md).

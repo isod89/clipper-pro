@@ -1,4 +1,4 @@
-# Clipper Pro 1.1 — les essais sur le SMK-37
+# Clipper Pro 1.2 — les essais sur le SMK-37
 
 Tout ce qu'il faut, dans l'ordre. Le guide rapide : [DEMARRAGE-RAPIDE-PRO-FR.md](DEMARRAGE-RAPIDE-PRO-FR.md) ; la
 référence : [CLIPPER-PRO.md](CLIPPER-PRO.md).
@@ -16,7 +16,7 @@ référence : [CLIPPER-PRO.md](CLIPPER-PRO.md).
 
 Double-clic sur **`INSTALL-CLIPPER-PRO.bat`**. Trois compilations (Pro, Elite, MKE-P37), quelques minutes. On doit voir :
 
-- `C L I P P E R   P R O   1.1 EXP   (8 voices)`
+- `C L I P P E R   P R O   1.2 EXP   (8 voices)`
 - « Building Clipper Pro for the SMK-37 Pro / SMK-37 Elite / MKE-P37 »
 - les paquets et leur SHA-256 dans `build\release\` (`clipper-pro.fwsc`, `clipper-pro-elite.fwsc`, `clipper-pro-mke.fwsc`)
 - l'installateur qui s'ouvre : `http://localhost:8768/webapp/installer/`
@@ -40,7 +40,7 @@ Vos presets utilisateur et réglages de SLOOP Pro restent (Clipper Pro les parta
 
 | # | Action | Attendu |
 |---|---|---|
-| 1 | Allumer | Logo clipper, badge orange **PRO** en haut à droite, « 1.1 EXPERIMENTAL » dessous |
+| 1 | Allumer | Logo clipper, badge orange **PRO** en haut à droite, « 1.2 EXPERIMENTAL » dessous |
 | 2 | PATCH maintenu (MENU) → SYSTEM → ABOUT | « CLIPPER » + « PRO » orange, « SMK-37 PORT: GENKIGENKI », la version, 2 CORES ou 1 CORE |
 | 3 | Les 37 touches, doux puis fort | Toutes jouent le son avec la nuance, y compris les 5 graves et les 5 aiguës |
 | 4 | K4 sur HOME, puis K3, en tapant des pads | Les sons défilent ; K3 saute au genre suivant (BASS, KEYS…) ; KNOB BANK clignote à chaque cran ; les pads **jouent toujours** le son (ils ne changent pas de son) |

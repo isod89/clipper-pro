@@ -31,7 +31,7 @@ static void sloop_splash(void)
         v += 8;                                         /* "CLIPPER 0.1" -> "0.1" under the wordmark */
 #if BOARD_SMK37
     if (v[0] == 'P' && v[1] == 'R' && v[2] == 'O' && v[3] == ' ')
-        v += 4;                                         /* "CLIPPER PRO 1.1" -> "1.1": PRO is the badge */
+        v += 4;                                         /* "CLIPPER PRO 1.2" -> "1.2": PRO is the badge */
     cv_begin(56, 40, C_BLACK);                          /* the PRO badge, top right of the sail: the orange sail's colour */
     cv_rect(0, 0, 56, 2, RGB(255, 98, 26)), cv_rect(0, 38, 56, 2, RGB(255, 98, 26));
     cv_rect(0, 0, 2, 40, RGB(255, 98, 26)), cv_rect(54, 0, 2, 40, RGB(255, 98, 26));
