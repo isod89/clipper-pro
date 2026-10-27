@@ -1020,7 +1020,7 @@ applyLang();
 function setStatus(txt, cls = "") { $("status").textContent = txt; $("status").className = cls; }
 const sayK = (k, arg = "", cls = "") => { lastKey = k; lastArg = arg; lastCls = cls; setStatus(t(k) + arg, cls); };
 const log = (s) => { $("log").textContent += s + "\n"; $("log").scrollTop = 1e9; };
-const meta = {"version": "1.2 EXP", "pkgs": [{"product": "SMK-37 Pro_900", "pkg": "../../firmware/clipper-pro-1.2-EXP.fwsc", "sha256": "9d43223db1f4834e37f62be47384d3b1126249b343560ca391256a3ba1c79d6d"}, {"product": "SMK-37 Elite_900", "pkg": "../../firmware/clipper-pro-elite-1.2-EXP.fwsc", "sha256": "ea5657a82a46a9c6aeba33856442c944a63b010cabd21146d80b241c4550a88a"}, {"product": "MKE-P37_900", "pkg": "../../firmware/clipper-pro-mke-1.2-EXP.fwsc", "sha256": "f203148db07e97eb4c8351c20de3e21dd2a423c15f51f414345976c2346d24bd"}]};   // { version, pkgs: [{ product, pkg, sha256 }] }: one package per model
+const meta = {"version": "1.2", "pkgs": [{"product": "SMK-37 Pro_900", "pkg": "../../firmware/clipper-pro-1.2.fwsc", "sha256": "86170d44a16f443795898683d6d128ad58453185d9947e1bddcb808d1e553242"}, {"product": "SMK-37 Elite_900", "pkg": "../../firmware/clipper-pro-elite-1.2.fwsc", "sha256": "92d5e5c60b85dd123f0064ad28bcaf7bdc1739dab242b68872f8773c5f069f76"}, {"product": "MKE-P37_900", "pkg": "../../firmware/clipper-pro-mke-1.2.fwsc", "sha256": "e3588f49fb7e113242d3c22a9e4780fd5ab6a9afecd1a01dfc399630f40c2e34"}]};   // { version, pkgs: [{ product, pkg, sha256 }] }: one package per model
 const images = new Map();                          // product -> logical image
 let writing = false;
 const lockAll = (on) => {
