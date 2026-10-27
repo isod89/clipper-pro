@@ -59,6 +59,11 @@ Vos presets utilisateur et réglages de SLOOP Pro restent (Clipper Pro les parta
 | 15c | PATCH maintenu → PADS → PAD LIGHTS | HIGH, MID, LOW changent la luminosité des pads ; KEYS n'apparaît plus |
 | 15d | Pads (NOTES) : 20 frappes douces, 20 fortes, un doigt laissé posé après une frappe douce, un roulement ; puis PADS → PAD THRESHOLD sur LOW et HIGH ; si une frappe double : PADS → PAD SCOPE, frapper jusqu'à « DOUBLE », photo de l'écran | Une frappe = une note, même douce ; le pad frappé s'allume en blanc un instant ; le roulement joue chaque coup ; LOW : un effleurement joue ; HIGH : il faut appuyer plus |
 | 15e | (correctifs de SLOOP 2.8.2) Le son en POLY (EDIT, VOICE) : REC, tenir une note grave, jouer 3 notes par-dessus, relâcher ; PLAY. Puis SEQ → NOTES, KNOB 3 LEN sur la note grave pour la prolonger sous les autres. Le son en MONO : une touche par-dessus une note tenue en enregistrant | La note tenue ne coupe pas et ne redémarre pas, ni en jouant ni à la relecture ; LEN la prolonge sous la mélodie ; MONO : « MONO: SET VOICE POLY » |
+| 15f | (correctifs de SLOOP 2.8.3) Projet vide, REC : tenir une note grave (son en POLY ou UNI2), jouer 3 notes par-dessus, relâcher ; PLAY | La note tenue dure toute la prise, sous les autres |
+| 15g | Un son SAMPLE (GRAND PNO, LOFI KEYS…), ATK un peu monté, la même note rejouée vite, en MONO puis en POLY | Pas de clic au début de chaque note |
+| 15h | Le preset FM KICK (FMX), page EDIT : tourner ALG jusqu'au bout et au-delà | Pas de plantage (FELUCCA CRASH) ni d'écran brouillé |
+| 15i | 2ND CORE ON : sauvegarde complète dans l'éditeur (Backup), 2 ou 3 fois | Pas de plantage ; s'il plante une fois, le clavier repart sur un cœur (ABOUT : 1 CORE) |
+| 15j | Tapoter vite SEQ, SEL, FX (moins d'un tiers de seconde) | Pas de page qui clignote ; maintenus, la page s'affiche |
 | 16 | Synthé externe sur la prise TRS (adaptateur TRS → DIN) | Il joue ce que jouent les touches, les pads, l'arpège |
 | 17 | Un DAW sur USB : touches, molettes, pédale | Notes, pitch bend, CC 1, CC 64 reçus ; GLO > MIDI 2 > SEND CC : les faders envoient leurs CC |
 | 18 | Un son modifié, SAVE > USER, éteindre, rallumer | Le preset est là |
