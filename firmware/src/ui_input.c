@@ -305,12 +305,12 @@ static void ui_leds(void)
     padled_dim_set(lights_lvl < 3u ? lights_lvl : 0u);   /* PAD LIGHTS (ui_menu.c padl_lvl) */
     smk_pad_level = (uint8_t)padt_lvl();           /* PAD THRESHOLD (ui_menu.c) */
     fm1_led[SMK_BTN_FADER_BANK] = fb_shown();      /* FADER BANK lit while its screen is up */
-    fm1_led[SMK_BTN_KNOB_BANK] = pick_pin || (int32_t)(fm1_ms - pick_k4_until) < 0;   /* KNOB BANK: SOUNDS pinned, K4 turning */
+    fm1_led[SMK_BTN_KNOB_BANK] = pick_pin || ms_pending(&pick_k4_until);   /* KNOB BANK: SOUNDS pinned, K4 turning */
     smk_pad_pick = (uint16_t)(pick_shown() ? 0xFFFFu : 0u);   /* (the SOUNDS pads: no notes) */
     smk_pad_grid = (uint8_t)padgrid_on();          /* (steps and tiles: reading order) */
     if (!is_drum(TSEL) && TSEL->p[P_AMODE])        /* ARP lit while the arpeggiator runs */
         fm1_led[panel.btn[B_ARP]] = 1;
-    if ((int32_t)(fm1_ms - padled_hold_until) >= 0) {   /* the pads. Off is off: no glow layers */
+    if (!ms_pending(&padled_hold_until)) {   /* the pads. Off is off: no glow layers */
         const uint8_t *col = pick_rgb_cur();       /* (Clipper Pro: the colour of the sound's kind) */
         if (pick_shown()) {
             pick_leds();                           /* SOUNDS: the sounds of a kind, the current one white */
@@ -363,8 +363,8 @@ static void ui_leds(void)
             fm1_irq_on();
             for (p = 0; p < SMK_NPAD; p++) {
                 if ((h >> p) & 1u)
-                    fl_until[p] = fm1_ms + 80u;
-                if ((int32_t)(fm1_ms - fl_until[p]) < 0)
+                    fl_until[p] = ms_deadline(80u);
+                if (ms_pending(&fl_until[p]))
                     padled_set(p, 120, 120, 120);
             }
         }
@@ -1269,9 +1269,13 @@ static void ui_input(void)
     }
     if (rec_wait && !ft_on && !ci_on) {                 /* the REC screen, armed: how it records */
         rec_knobs();                                    /* (tempo and sound still work; the track too: */
+        enc_hold |= 15u << EN_K1;                       /* (SLOOP Pro #6) KNOB 1..4 are the REC screen's this pass: a
+                                                         * detent counted after rec_knobs read it never reaches the page
+                                                         * under it too (KNOB 3 START also moved the page's KNOB 3) */
     } else if (rec_wait || ft_on) {                     /* the arm follows) */
         for (k = 0; k < 4u; k++)                        /* a take / the count-in: KNOB 1..4 edit nothing */
             panel_enc(EN_K1 + k);
+        enc_hold |= 15u << EN_K1;
     }
 #if FELUCCA_ARRANGER
     if (on_song_page()) {

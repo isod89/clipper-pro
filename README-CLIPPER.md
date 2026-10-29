@@ -7,7 +7,7 @@ Free and open source (GPL-3.0). It grew out of <a href="https://github.com/isod8
 
 ---
 
-> **Status: 1.1, EXPERIMENTAL.** This is an early, experimental release, and there is still a huge amount of work to do (see [What is left to do](#what-is-left-to-do)). It passes its whole test suite on a computer, but it has run very little on a real FM-1: expect rough edges. Install it at your own risk, and keep a backup made with the editor. You can go back to the official V15 from the installer page, or to SLOOP with its own `INSTALL-SLOOP.bat`.
+> **Status: 1.1, EXPERIMENTAL.** This is an early, experimental release, and there is still a huge amount of work to do (see [What is left to do](#what-is-left-to-do)). It passes its whole test suite on a computer, but it has run very little on a real FM-1: expect rough edges. Install it at your own risk, and keep a backup made with the editor. You can go back to the official firmware (V16 or V15) from the installer page, or to SLOOP with its own `INSTALL-SLOOP.bat`.
 
 SLOOP is a groovebox. **Clipper is a synthesizer** with 23 engines and 407 sounds, one instrument (two in MULTI) like the original FM-1 firmware, Felucca and Baudgirl's FM-1+VA. It has no tracks, no drum machine, no song mode and no built-in samples. It keeps SLOOP's 12 sound engines, effects, arpeggiator, step sequencer, USB audio and MIDI, and adds **HYBRID**: one voice built from three oscillators, two filters and a modulation matrix, with the whole patch editable in the browser.
 

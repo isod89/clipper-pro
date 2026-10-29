@@ -37,7 +37,10 @@ is GPL-3.0-only unless [LICENSING.md](LICENSING.md) says otherwise.
   - **Documentation:** the reverse engineering and documentation of the SMK-37.
 - **ChanceTheMaker**, [sloop-smk](https://github.com/ChanceTheMaker/sloop-smk): ideas Clipper Pro and SLOOP Pro rebuilt:
   - the sustain pedal's measured levels;
-  - a flush so that no note hangs on the TRS output.
+  - a flush so that no note hangs on the TRS output;
+  - the installer's MIDI session in a disposable document (`MidiSession` in `web/smkota.js`, after his
+    `web/midi-session.js`): Chrome no longer holds the keyboard while it restarts into its loader and back (the
+    browser freezes of Windows USB installs he reported, [sloop-pro #3](https://github.com/isod89/sloop-pro/issues/3)).
 
   He also studied Windows USB installs and the MIDI session.
 

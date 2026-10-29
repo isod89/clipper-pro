@@ -33,7 +33,7 @@ what the bigger keyboard brings, made for playing a synthesizer:
 | **MIDI** | USB MIDI, and the **TRS MIDI OUT** jack: the keys, pads, wheels, pedal, arpeggiator and sequencer go out on both |
 | **Models** | SMK-37 Pro (and Starrykey 37 Play), SMK-37 Elite, MKE-P37: one package each, the installer picks the right one |
 
-> **Status:** Clipper Pro 1.2, built on Clipper 1.1 with SLOOP 2.8.3's fixes, tested on the SMK-37. Install at your own risk (read the
+> **Status:** Clipper Pro 1.3, a bug-fix release (no more distortion at the end of notes, 3.5 mm and USB; UNISON no longer stacks its voices in phase; PHYS strings in tune; NZ ARCADE, SAMPLE and GRAIN follow the top keys; a firm press on a layer button opens its pages; on REC READY a knob changes only its own value; the faders follow a real volume curve; the sustain pedal held as long as you like; no hanging note on TRS MIDI OUT; the lights no longer freeze after 25 days; the installer no longer freezes Chrome on Windows; VECTOR's filter MODEL changes without a click; SLOOP projects keep Clipper's values; backups keep your wavetables; the way back accepts M-VAVE's V16), built on Clipper 1.3, tested on the SMK-37 as 1.2. Install at your own risk (read the
 > [safety notes](CLIPPER-PRO.md#safety)); your unit's calibration is never written, and M-VAVE's own updater takes you
 > back at any time.
 
@@ -72,7 +72,7 @@ kept here as [README-CLIPPER.md](README-CLIPPER.md).
   [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37), the board layer and its patch series, the pad picker and
   the FADER BANK screen, the installer library that works on Windows.
 - **[@ChanceTheMaker](https://github.com/ChanceTheMaker)**, [sloop-smk](https://github.com/ChanceTheMaker/sloop-smk):
-  the ideas behind the pedal and the TRS note-off flush.
+  the ideas behind the pedal, the TRS note-off flush and the installer's disposable MIDI session.
 - **The second core:** [@andrerezemini](https://github.com/andrerezemini) (sloop-lab),
   [Charles Vestal](https://github.com/charlesvestal) (X0X), [@keremimo](https://github.com/keremimo) (Melodee).
 - **Also:** [@juanjiant-bit](https://github.com/juanjiant-bit) (JIANT FM), [AL-255](https://github.com/AL-255/FM-1-RE)

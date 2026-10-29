@@ -124,7 +124,7 @@ static void pick_pin_toggle(void)                  /* KNOB BANK */
 }
 static void pick_hint(void)                        /* a PRESETS / ALGORITHM detent: KNOB BANK flashes */
 {
-    pick_k4_until = fm1_ms + 150u;
+    pick_k4_until = ms_deadline(150u);
 }
 static void pick_follow(void)                      /* (once a frame) the sound changed (K3, K4, MIDI, the editor): an
                                                     * open SOUNDS goes to its page */

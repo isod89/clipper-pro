@@ -78,4 +78,4 @@ Some players hear a crackle or a noise on the left channel, with the reverb on a
 ## Going back
 
 - **To SLOOP**: run `INSTALL-SLOOP.bat` from SLOOP's folder. A sound set to HYBRID plays another engine there.
-- **To the official firmware**: use the installer page ("Return to the official firmware (V15)"), after making a backup.
+- **To the official firmware**: use the installer page ("Return to the official firmware", with M-VAVE's official FM-1.fwsc: V16, or V15), after making a backup.

@@ -8,7 +8,7 @@
  *   C TONE    CUTOFF, RESONANCE (the engine's own, CC 74 / 71), LFO RATE (CC 76), GLIDE (CC 5)
  *   D MIX     CHORUS, DELAY, REVERB sends (CC 93, 94, 91), LEVEL (CC 7)
  * A fader sets its value as the CC from a MIDI controller does (seq.c midi_cc: 0..127 over the range), on the sound being
- * played; with GLO > MIDI 2 > SEND CC the move goes out as that CC too (seq.c cc_out_knob). A fader takes over only
+ * played (LEVEL by GM's volume law instead: fb_level); with GLO > MIDI 2 > SEND CC the move goes out as that CC too (seq.c cc_out_knob). A fader takes over only
  * once it moves (also after a bank change): nothing jumps. A move brings the screen up (the value it set), for FB_SHOW_MS.
  * After genkigenki's FADER BANK screen (SLOOP's SMK-37 layer) */
 #define FB_N 4u
@@ -72,6 +72,17 @@ static const param_desc_t *fb_param(uint32_t b, uint32_t i, int16_t **vp)
     }
     return cc_target(t, cc, vp);
 }
+/* (#7 of SLOOP Pro) a fader's position v (0..127) -> LEVEL. LEVEL is in 1/2 dB steps (params.c F_DB: 0 off, 1 -55.5 dB ..
+ * 112 0 dB .. 127 +7.5 dB); read as LEVEL steps (as CC 7 sets it), the travel's lower half was -55..-24 dB, heard as
+ * muted. GM's volume law instead (40 log10(v / 127)): the gain (LEVEL_Q12) the nearest above LEVEL_Q12[127] (v / 127)^2:
+ * 0 off, 1 the quietest step, half the travel -4 dB (LEVEL's power-on 104), the top 127 */
+static int16_t fb_level(uint32_t v)
+{
+    uint32_t want = (LEVEL_Q12[127] * (v > 127u ? 127u : v) * (v > 127u ? 127u : v) + 16128u) / 16129u, l = 0;
+    while (l < 127u && LEVEL_Q12[l] < want)
+        l++;
+    return (int16_t)l;
+}
 /* fader i of bank b moved to v (0..127): as the CC (seq.c midi_cc), then SEND CC (cc_out_knob) */
 static void fb_apply(uint32_t b, uint32_t i, uint32_t v)
 {
@@ -84,6 +95,8 @@ static void fb_apply(uint32_t b, uint32_t i, uint32_t v)
     old = *vp;
     if (cc == FB_SUS)
         *vp = (int16_t)(d->min + ((int32_t)v * (d->max - d->min) + 63) / 127);
+    else if (cc == 7u)                             /* LEVEL: GM's volume law over the travel (fb_level) */
+        *vp = fb_level(v);
     else
         midi_cc(t, cc, v);
     if (*vp != old) {

@@ -99,17 +99,22 @@ class FakeKeyboard {
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
+    if (this.access.inputs.size && this.chrome) this.chrome.leave();   /* it leaves the USB (a restart) */
     for (const m of [this.access.inputs, this.access.outputs]) { for (const p of m.values()) p.state = "disconnected"; m.clear(); }
     const id = Math.random().toString(36).slice(2);
     this.input = { id: "i" + id, name, state: "connected", onmidimessage: null, open: async () => {} };
     this.output = { id: "o" + id, name, state: "connected", open: async () => {}, send: (d) => {
       if (this.output.state !== "connected") throw new Error("InvalidStateError");
+      if (this.chrome && this.chrome.wedged) return;            /* Chrome's MIDI thread is stuck: nothing leaves */
       setTimeout(() => this.rx(Array.from(d)), 1);
     } };
     this.access.inputs.set(this.input.id, this.input);
     this.access.outputs.set(this.output.id, this.output);
   }
-  tx(bytes) { const i = this.input; setTimeout(() => { if (i.state === "connected" && i.onmidimessage) i.onmidimessage({ data: Uint8Array.from(bytes) }); }, 1); }
+  tx(bytes) {
+    const i = this.input;
+    setTimeout(() => { if (i.state === "connected" && i.onmidimessage && !(this.chrome && this.chrome.wedged)) i.onmidimessage({ data: Uint8Array.from(bytes) }); }, 1);
+  }
   rx(d) {
     if (eq(d, HS)) {
       const t = [...new TextEncoder().encode(this.identity)];
@@ -143,11 +148,38 @@ class FakeKeyboard {
     this.tx([0xF0, ...pack7(u), 0xF7]);
   }
 }
+/* Chrome's MIDI, as Chromium's sources do it (media/midi/midi_service.cc and midi_manager_win.cc, Blink's MIDIPort):
+   the browser opens every MIDI device (on Windows its WinMM handles) while any document holds a MIDIAccess, whatever
+   the page's port.open() / close() say (Blink: "TODO: Add blink API to perform a real open and close operation"), and
+   lets them go when the last such document ends: an iframe removed, the page's own document only with the tab.
+   windows: a keyboard that leaves the USB while the browser holds it wedges Chrome's MIDI thread, the freeze of
+   sloop-pro #3 (ChanceTheMaker: "MIDI is not released when the device reboots into flashing mode"; the WinMM call
+   that blocks is to be confirmed on hardware): from then on no MIDI message moves, no new MIDIAccess is given, and
+   the end of a session blocks the browser (here the event loop, 1.5 s) */
+class ChromeMidi {
+  constructor(dev, { windows = false } = {}) {
+    this.dev = dev; this.windows = windows; this.docs = new Set(); this.wedged = false; this.froze = 0; this.leaves = 0; this.heldAtLeave = 0;
+    dev.chrome = this;
+  }
+  request(doc) {                                     /* navigator.requestMIDIAccess() of a document */
+    if (this.wedged) return new Promise(() => {});
+    this.docs.add(doc);
+    return Promise.resolve(this.dev.access);
+  }
+  end(doc) {                                         /* that document is gone */
+    if (!this.docs.delete(doc) || !this.wedged) return;
+    const t = Date.now() + 1500;
+    while (Date.now() < t);                          /* the browser waits for its stuck MIDI thread */
+    this.froze++;
+  }
+  leave() { this.leaves++; if (this.docs.size) { this.heldAtLeave++; if (this.windows) this.wedged = true; } }
+}
+
 /* the bytes a package gives the device for its first 4 KiB (its logical image), to tell which package was written */
 const logical = (raw) => { const out = []; for (let i = 0; i < 20; i++) out.push(...raw.subarray(i * 0x30, i * 0x30 + 0x2F)); out.push(...raw.subarray(20 * 0x30)); return out; };
 
 /* ---- the page in a VM: a small DOM, fetch from the site, the fake keyboard as navigator.requestMIDIAccess ---- */
-async function runPage(dev, { model = "auto", risk = true, tamper = null, lang = "en" } = {}) {
+async function runPage(dev, { model = "auto", risk = true, tamper = null, lang = "en", chrome = new ChromeMidi(dev) } = {}) {
   const els = new Map();
   const el = (id, extra = {}) => {
     if (!els.has(id)) els.set(id, { id, textContent: "", className: "", disabled: false, hidden: false, checked: false, value: "",
@@ -159,8 +191,16 @@ async function runPage(dev, { model = "auto", risk = true, tamper = null, lang =
   const dataT = [...page.matchAll(/data-t="(\w+)"/g)].map((m, i) => el("t" + i, { dataset: { t: m[1] } }));
   const langs = ["fr", "en", "ja"].map((l) => el("lang-" + l, { dataset: { l } }));
   const radios = ["auto", "SMK-37 Pro", "SMK-37 Elite", "MKE-P37"].map((v) => el("r-" + v, { value: v, checked: v === model }));
+  const frames = new Set();                         /* iframes: each document its own MIDIAccess (ChromeMidi) */
   const doc = {
     documentElement: { lang: "" },
+    createElement: (tag) => ({ tag, hidden: false, attrs: {}, contentWindow: null, setAttribute(k, v) { this.attrs[k] = v; },
+      remove() { if (frames.delete(this)) { this.contentWindow = null; chrome.end(this); } } }),
+    body: { appendChild(f) {
+      frames.add(f);
+      f.contentWindow = { navigator: { requestMIDIAccess: () => chrome.request(f) } };
+      return f;
+    } },
     getElementById: (id) => el(id),
     querySelectorAll: (s) => s === "[data-t]" ? dataT : s === ".lang" ? langs : s === "input" ? [el("risk"), ...radios] : [],
     querySelector: (s) => (s.includes(":checked") ? radios.find((r) => r.checked) : null),
@@ -175,7 +215,7 @@ async function runPage(dev, { model = "auto", risk = true, tamper = null, lang =
   const script = page.slice(page.indexOf('<script type="module">') + 22, page.lastIndexOf("</script>"));
   const ctx = vm.createContext({
     document: doc, window: win, location: { protocol: "file:" }, fetch: fetchFile, crypto: webcrypto, self: { crypto: webcrypto },
-    navigator: { language: lang, requestMIDIAccess: async () => dev.access },
+    navigator: { language: lang, requestMIDIAccess: () => chrome.request(doc) },   /* the page's own document: never ends */
     localStorage: { getItem: () => null, setItem: () => {} },
     setTimeout, clearTimeout, setInterval, clearInterval, console, TextEncoder, TextDecoder, Uint8Array, Promise, Date, Math, JSON, Error, Map, Set,
   });
@@ -185,7 +225,7 @@ async function runPage(dev, { model = "auto", risk = true, tamper = null, lang =
   const loaded = status();
   const go = el("go").listeners.click?.[0];
   if (!el("go").disabled && go) await go();
-  return { loaded, status: status(), device: el("device").textContent, go: el("go"), cls: el("status").className };
+  return { loaded, status: status(), device: el("device").textContent, go: el("go"), cls: el("status").className, log: el("log").textContent, frames };
 }
 
 const t0 = Date.now();
@@ -240,6 +280,30 @@ for (const [identity, key, what] of [["FM-1_015", "The connected device is an FM
 {
   const r = await runPage(new FakeKeyboard({ identity: "SMK-37 Pro_016" }), { lang: "fr-CA", risk: false });
   ok(/^Prêt : Clipper Pro 2\.8/.test(r.loaded) && r.status === "Cochez d'abord la case ci-dessus.", "page: in French for a French browser");
+}
+{   /* sloop-pro #3 (ChanceTheMaker): "the installer freezes my Chrome browser when installing via usb". On Windows the
+       keyboard restarts twice (into its loader, then into Clipper Pro); while a document holds a MIDIAccess, Chrome's
+       MIDI holds the keyboard through those restarts, whatever ports the page closes. The page must let Chrome's MIDI
+       go before each restart and take it again after: then the install finishes, nothing freezes, nothing is held */
+  const dev = new FakeKeyboard({ identity: "SMK-37 Pro_016", loader: "ota-SMK-37 Pro_928", finalIdentity: "SMK-37 Pro_928" });
+  const chrome = new ChromeMidi(dev, { windows: true });
+  let last = Date.now(), lag = 0;
+  const dog = setInterval(() => { const n = Date.now(); lag = Math.max(lag, n - last - 100); last = n; }, 100);   /* the watchdog */
+  let tm;
+  const r = await Promise.race([runPage(dev, { chrome }), new Promise((res) => { tm = setTimeout(() => res(null), 45000); })]);
+  clearTimeout(tm); clearInterval(dog);
+  ok(r && r.status === "Done: the keyboard runs SMK-37 Pro_928" && eq(dev.written, logical(IMAGES["SMK-37 Pro"]).slice(0, 4096)),
+     "page (#3): Windows: the install through both restarts finishes");
+  ok(chrome.leaves === 2 && chrome.heldAtLeave === 0 && !chrome.wedged && chrome.froze === 0 && lag < 1000,
+     `page (#3): Chrome's MIDI let go at both restarts: nothing wedged or frozen (${chrome.heldAtLeave} held, ${lag} ms lag)`);
+  ok(r && chrome.docs.size === 0 && r.frames.size === 0, "page (#3): nothing holds MIDI once it is done (its iframe removed)");
+}
+{   /* no keyboard: the page says so (with the MIDI ports it saw), and lets MIDI go */
+  const dev = new FakeKeyboard({ identity: "SMK-37 Pro_016" });
+  dev.access.inputs.clear(); dev.access.outputs.clear();
+  const chrome = new ChromeMidi(dev);
+  const r = await runPage(dev, { chrome });
+  ok(/^Keyboard not found/.test(r.status) && r.cls === "bad" && chrome.docs.size === 0, "page: no keyboard: 'not found', MIDI let go");
 }
 console.log(`(${((Date.now() - t0) / 1000).toFixed(0)} s)`);
 console.log(failed ? `CLIPPER PRO PAGE TESTS FAILED (${failed})` : "clipper pro page tests passed");

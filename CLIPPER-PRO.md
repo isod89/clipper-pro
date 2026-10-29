@@ -1,6 +1,6 @@
 # Clipper Pro: Clipper on the M-VAVE SMK-37
 
-Clipper Pro 1.2 is Clipper 1.1, the synthesizer firmware for the FM-1, with SLOOP 2.8.3's fixes, on the M-VAVE SMK-37: the SMK-37 Pro (and the
+Clipper Pro 1.3 is Clipper 1.3, the synthesizer firmware for the FM-1 (with SLOOP 2.8.3's fixes and 1.3's bug fixes), on the M-VAVE SMK-37: the SMK-37 Pro (and the
 Starrykey 37 Play), the SMK-37 Elite and the MKE-P37 are one keyboard, with one package each. The board layer
 (keys, pads, faders, wheels, the screen, the flash map and the update path) is genkigenki's
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37). Everyone who made it possible:
@@ -59,7 +59,7 @@ of their travel set the range; the pitch wheel's rest is its centre.
 | the 5 lowest (C3 to E3) and 5 highest (G#5 to C6) keys | more notes of the sound, with velocity (chromatic, OCT and TRANS apply) |
 | 16 RGB pads, **NOTES** (the default) | the 16 white keys F3 to G5 (bottom row F3 to F4, top row G4 to G5), with velocity. They play as the keys do: SEL's QNT WHITE makes the white keys walk the scale from C4, chords, the arpeggiator and recording included. Lit in the colour of the sound's kind: bright while the note sounds, the root's pads half, the others dim, a silent pad dark |
 | 16 RGB pads, **SOUNDS** | **KNOB BANK** opens it (lit; pressed again: closed). Only KNOB BANK does: K3 and K4 browse the sounds while the pads keep playing, and an open SOUNDS follows them to the sound's page. The pads and the screen show the sounds of one kind, 16 a page (the favourites, then BASS, KEYS, ORGN, PAD, LEAD, PLCK, STAB, FX, then your user presets), each kind in its colour, the current sound white. A tap loads the sound and plays a short preview; `<` `>` step the pages; PATCH closes it |
-| pads, a layer held | as on the FM-1's keys: SEQ held, the 16 steps (read like text: top row 1 to 8); SEL held, a little piano (top row C4 to C5, bottom row the black keys): a pad sets the key; FX held, the 16 punch-in effects; GLO held, FILL (9), FILL NEXT BAR (10), TAP tempo (16); SAVE held, the song's sections (1 to 4 play, 5 to 8 store, 13 LOOP / SONG, 14 SONG REC, 16 the SONG page). Every tile that does something glows, the active one bright |
+| pads, a layer held | as on the FM-1's keys: SEQ held, the 16 steps (read like text: top row 1 to 8); SEL held, a little piano (top row C4 to C5, bottom row the black keys): a pad sets the key; ARP held, note repeat (a pad held repeats on the grid, recorded as ratchets); EDIT held, erase; GLO held, FILL (9), FILL NEXT BAR (10), TAP tempo (16). FX and SAVE are not layers on Clipper: held, the pads and keys keep playing, and a tap opens their pages. Every tile that does something glows, the active one bright |
 
 ## Buttons
 

@@ -2,11 +2,13 @@
 // GPL-3.0; the version that installs the SMK-37 ports from Chrome on Windows: ports closed before the keyboard leaves
 // the USB, nothing probed until it is gone, a deadline on every port open and every wait, UPGRADE sent again to a
 // silent loader), with SLOOP's additions: find(filter, deep) for a generically named loader, the package's board
-// checked in install() and resume() (boardRefusal), resume(..., { verify }), pickPackage for the three models.
+// checked in install() and resume() (boardRefusal), resume(..., { verify }), pickPackage for the three models, and
+// MidiSession: Chrome's MIDI let go while the keyboard restarts (ChanceTheMaker's disposable MIDI session, sloop-pro #3).
 // SPDX-License-Identifier: GPL-3.0-only
 // Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 // SMK-37 installer (Windows-safe WebMIDI): Copyright (C) 2026 M. Geisler (genkigenki/makkuro)
 // SLOOP Pro additions: Copyright (C) 2026 isod89
+// The MIDI session in a disposable document: after ChanceTheMaker's sloop-smk (web/midi-session.js, GPL-3.0)
 //
 // The FM-1 USB-MIDI update protocol (M-UPGRADE compatible) over WebMIDI.
 // Step 1: the running firmware reads parts of the package and stages the update
@@ -57,8 +59,10 @@ const outcome = (r) => r.finished ? "finished" : r.lost ? "port gone" : r.timeou
 // every wait has an end (ms): a port open (Windows can leave one pending forever), step 1 in all, the wait for the
 // loader, the loader's first request (our loader gets UPGRADE again at resend), the idle time once writing has
 // started, the wait for the new firmware. Updater's opts.timing overrides single values (the tests)
+// away: with a MidiSession, the time a restarting device gets to leave the USB and come back before a new session
+// looks at it (no MIDI is held meanwhile, so nothing can tell when it has left)
 const TIMING = { open: 3000, step1Idle: 8000, step1Total: 60000, loader: 30000, jumped: 15000, firstReq: 30000,
-  resend: [5000, 15000], idle: 180000, back: 40000, settle: 2000, reboot: 3000 };
+  resend: [5000, 15000], idle: 180000, back: 40000, settle: 2000, reboot: 3000, away: 5000, session: 60000 };
 const QMAX = 256;                                      // SysEx messages queued per link: the oldest go first
 // the M-Vave firmwares of the SMK-37 range before V016: their update mode was not built for this installer
 const OLD_STOCK = (id) => SMK_FAMILY.test(id.model) && !/^ota-/i.test(id.model) && !OTHER_SMK(id) && id.version < 16;
@@ -145,8 +149,11 @@ class Link {
     };
   }
   get lost() { return this.input.state === "disconnected" || this.output.state === "disconnected"; }
-  // false when the port is gone (unplugged): WebMIDI throws on a disconnected output
+  // false when the port is gone (unplugged), and then nothing is sent: Chrome does not throw on a disconnected output,
+  // it queues the message until the port opens again (Blink MIDIOutput), so a port the browser reports gone is
+  // never sent anything
   send(bytes) {
+    if (this.closed || this.lost) return false;
     try { this.output.send(bytes); return true; } catch (_) { return false; }
   }
   drain() { this.q.length = 0; }
@@ -160,8 +167,10 @@ class Link {
     return this.q.shift() || null;
   }
   // done with a device that restarts now (after step 1, after step 2): no more messages, but the ports are not
-  // closed. Closing a port while its device leaves the USB has hung Chrome's MIDI on Windows; the browser drops
-  // the ports of a device that is gone by itself
+  // closed (closing a port while its device leaves the USB has hung Chrome's MIDI on Windows). Such a port stays
+  // "pending" and Chrome reopens it when that port comes back; a port's open / close are bookkeeping in Chrome
+  // anyway (Blink MIDIPort): the browser holds the device for as long as the MIDIAccess lives. With a MidiSession,
+  // Updater lets that go at each restart (restart())
   detach() {
     if (this.closed) return;
     this.closed = true;
@@ -188,8 +197,9 @@ class Link {
   }
 }
 
-// a device that restarts: wait (at most ms) until the browser reports its ports as gone. Opening a port whose device
-// is leaving the USB has hung Chrome's MIDI on Windows (the whole browser), so nothing is probed before that
+// a device that restarts: wait (at most ms, polling with awaits) until the browser reports its ports as gone. Opening a
+// port whose device is leaving the USB has hung Chrome's MIDI on Windows (the whole browser), so nothing is probed
+// before that (without a MidiSession; with one, no MIDI is held while it restarts)
 async function gone(link, ms) {
   const end = Date.now() + ms;
   while (Date.now() < end && !link.lost) await sleep(100);
@@ -211,14 +221,120 @@ async function handshake(link, tries = 3) {
   return null;
 }
 
+// ---- the MIDI session: Chrome's MIDI let go while the keyboard restarts (sloop-pro #3) ----
+// "The installer freezes my Chrome browser when installing via usb" (ChanceTheMaker, sloop-pro #3: "MIDI is not
+// released when the device reboots into flashing mode"). Chrome opens every MIDI device in the browser process (on
+// Windows its WinMM handles, every port of every device) while any document holds a MIDIAccess, and lets them go only
+// when the last such session ends (Chromium media/midi/midi_manager_win.cc: "open each device on connected";
+// midi_service.cc: the manager is destroyed with its last session). A page's port.open() / close() never reach it
+// (Blink's MIDIPort: "TODO: Add blink API to perform a real open and close operation"). So the ports Updater closed
+// before a restart released nothing: the page's one MIDIAccess, kept for the page's whole life, kept the keyboard open
+// in Chrome while it left the USB and came back as its loader, and again into the new firmware; on Windows that hung
+// Chrome's MIDI thread, and the browser with it. A page cannot end its own document's session (only the garbage
+// collector does), so, as ChanceTheMaker's sloop-smk does (web/midi-session.js), the MIDIAccess is made in a hidden
+// iframe: removing the iframe ends its session at once. Updater({ session }) lets it go before each restart and takes a
+// new one once the device is back. (Another tab that uses MIDI, the editor too, keeps Chrome's MIDI open: the page
+// asks to close them.) Without a document (a test, a worker) or when the iframe is refused, the page's own navigator
+// gives the access, one for the page's whole life as before (a new one per click left the old one's ports to the
+// garbage collector): release() then only closes the ports, and Updater watches a restarting device as before.
+export class MidiSession {
+  constructor(doc = globalThis.document, nav = globalThis.navigator) {
+    this.doc = doc; this.nav = nav; this.frame = null; this.access = null; this.ends = 0; this.isolated = false;
+    this.own = null;                                   // (the page's own MIDIAccess, when there is no iframe)
+  }
+  // a new MIDIAccess (SysEx) in a new document; ms: its deadline (a permission prompt waits for the user)
+  async open(ms = TIMING.session) {
+    await this.release();
+    let frame = null, nav = null;
+    try {
+      if (this.doc && this.doc.createElement && this.doc.body) {
+        frame = this.doc.createElement("iframe");
+        frame.hidden = true;
+        if (frame.setAttribute) { frame.setAttribute("allow", "midi"); frame.setAttribute("aria-hidden", "true"); }
+        this.doc.body.appendChild(frame);
+        const n = frame.contentWindow && frame.contentWindow.navigator;
+        if (n && n.requestMIDIAccess) nav = n;
+      }
+    } catch (_) { nav = null; }
+    if (frame && !nav) { try { frame.remove(); } catch (_) {} frame = null; }
+    const ask = async (n) => {
+      const a = await within(Promise.resolve().then(() => n.requestMIDIAccess({ sysex: true })), ms, null);
+      if (!a) throw fail("denied", `no MIDI access within ${Math.round(ms / 1000)} s (the permission prompt?)`);
+      return a;
+    };
+    if (frame) {
+      this.frame = frame;
+      try {
+        const a = await ask(nav);
+        if (this.frame !== frame) throw fail("denied", "the MIDI session was closed");
+        this.access = a; this.isolated = true;
+        return a;
+      } catch (_) { try { frame.remove(); } catch (_) {} this.frame = null; }   // (then the page's own, as before)
+    }
+    if (!this.nav || !this.nav.requestMIDIAccess) throw fail("denied", "this browser has no Web MIDI");
+    this.own = this.own || await ask(this.nav);
+    this.access = this.own; this.isolated = false;
+    return this.access;
+  }
+  // no more messages, no state events; the iframe removed: Chrome's MIDI session ends (its ports, its devices).
+  // Without an iframe the ports are closed (with a deadline), which is all a page can do
+  async release() {
+    const access = this.access, frame = this.frame;
+    this.access = null; this.frame = null;
+    if (access) {
+      try { access.onstatechange = null; } catch (_) {}
+      const ports = [...access.inputs.values(), ...access.outputs.values()];
+      for (const p of ports) {
+        try { if ("onmidimessage" in p) p.onmidimessage = null; } catch (_) {}
+        try { if ("onstatechange" in p) p.onstatechange = null; } catch (_) {}
+      }
+      if (!frame)
+        await Promise.all(ports.filter((p) => p.close && p.state !== "disconnected")
+          .map((p) => within(Promise.resolve().then(() => p.close()).catch(() => {}), 1000)));
+    }
+    if (frame) { try { frame.remove(); } catch (_) {} this.ends++; }
+  }
+}
+const NO_MIDI = Object.freeze({ inputs: new Map(), outputs: new Map() });   // (no session at this moment)
+
 export class Updater {
   // opts.all: probe every MIDI port, not only PORT_RE's (the handshake query is harmless to other gear)
+  // opts.session: the MidiSession that gave access; it is let go while a device restarts, and taken again after
   constructor(access, log, opts = {}) {
     this.access = access;
     this.log = log || (() => {});
     this.all = !!opts.all;
     this.said = new Set();
     this.t = { ...TIMING, ...(opts.timing || {}) };
+    this.session = opts.session || null;
+  }
+
+  // the MIDI inputs there are, for the "not found" message: " (MIDI: a, b)"
+  seen() {
+    const names = [...this.access.inputs.values()].filter((p) => p.state !== "disconnected").map((p) => p.name || "?");
+    return names.length ? ` (MIDI: ${names.join(", ")})` : " (MIDI: none)";
+  }
+
+  // a device restarts now: with a session, Chrome's MIDI is let go (the device is not held while it leaves the USB and
+  // comes back), and a new session taken after t.away; without one, its ports are watched until the browser reports
+  // them gone. -> the ms it waited after the device left (for the page's seconds)
+  async restart(link) {
+    if (this.session && this.session.isolated && this.session.access) {
+      this.access = NO_MIDI;
+      await this.session.release();
+      this.log(`MIDI let go while the device restarts (${this.t.away / 1000} s)`);
+      await sleep(this.t.away);
+      await this.takeBack(this.t.session);
+      return this.t.away;
+    }
+    await gone(link, 15000);                           // never probe a port while its device is still leaving the USB
+    await sleep(this.t.reboot);
+    return this.t.reboot;
+  }
+  // a new session after restart() (none yet: waitFor tries again)
+  async takeBack(ms) {
+    if (!this.session || this.access !== NO_MIDI) return;
+    try { this.access = await this.session.open(ms); } catch (e) { this.log(`no MIDI access yet: ${e.message}`); }
   }
 
   say(t) { if (!this.said.has(t)) { this.said.add(t); this.log(t); } }   // each port line once
@@ -267,6 +383,7 @@ export class Updater {
     const timer = onTick ? setInterval(() => onTick(Math.round((Date.now() - t0) / 1000)), 1000) : null;
     try {
       while (Date.now() < end) {
+        if (this.access === NO_MIDI) await this.takeBack(Math.max(1, end - Date.now()));
         const run = { gaveUp: false, got: null };
         const dev = await within(this.find(filter, deep === true || (typeof deep === "number" && Date.now() - t0 >= deep)).then((d) => { if (run.gaveUp && d) d.link.close(); else run.got = d; return d; }),
           Math.max(0, end - Date.now()), null);
@@ -355,18 +472,17 @@ export class Updater {
     const jumped = !s1.finished && s1.lost && s1.served === 0;
     if (!s1.finished && !jumped) throw fail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
     step("loader");
-    await gone(dev.link, 15000);                       // never probe a port while its device is still leaving the USB
-    await sleep(t.reboot);
+    const waited = await this.restart(dev.link);      // (Chrome's MIDI let go, or the ports watched until gone)
     const wait = jumped ? t.jumped : t.loader;
     // (named ports first, as the reference installer; after 10 s the other ports too: Windows can name the loader
     // generically, "USB MIDI Device")
-    const ota = await this.waitFor(IS_OTA, wait, (s) => step("wait", s + Math.round(t.reboot / 1000)), 10000);
+    const ota = await this.waitFor(IS_OTA, wait, (s) => step("wait", s + Math.round(waited / 1000)), 10000);
     if (jumped && !(ota && OUR_LOADER(ota.id) && sameKeyboard(ota.id.model.replace(/^ota-/i, ""), dev.id.model))) {
       if (ota) ota.link.close();
       throw fail(ota ? "foreign" : "lost", ota ? `the device restarted into the update mode of another firmware (${ota.id.text}): nothing was written`
         : "the device was disconnected after 0 requests: nothing was written", ota ? ota.id.text : "");
     }
-    if (!ota) throw fail("noloader", `the update loader did not appear within ${Math.round((wait + t.reboot) / 1000)} s. Close Chrome, open this page again, press Connect and the Install or Repair button again: it goes on where it stopped.`);
+    if (!ota) throw fail("noloader", `the update loader did not appear within ${Math.round((wait + waited) / 1000)} s. Close Chrome, open this page again, press Connect and the Install or Repair button again: it goes on where it stopped.`);
     // one of our packages goes only to our loader, of this keyboard: never into another firmware's (the official one
     // lays the image out its own way). An official package (identity _0NN, the way back) keeps the path it had.
     const official = /_0\d\d$/.test(product);
@@ -378,8 +494,7 @@ export class Updater {
     if (!s2.finished) throw this.writeFail(s2);
     step("written");
     step("reboot");
-    await gone(ota.link, 15000);
-    await sleep(t.reboot);
+    await this.restart(ota.link);
     const back = await this.waitFor((id) => !IS_OTA(id), t.back, (s) => step("back", s));
     if (!back) throw fail("noreturn", "the device did not come back: power-cycle it");
     back.link.close();
@@ -399,7 +514,9 @@ export class Updater {
     const s2 = await this.serve(ota.link, image, 0xF0000000, t.idle, (n) => step("write", n), {
       firstMs: t.firstReq, maxReq: 3 * Math.ceil(image.length / MAXDATA) + 64,
       resend: OUR_LOADER(ota.id) ? t.resend : [], onWait: (s) => { if (s >= 3) step("noreq", s); } });
-    if (s2.finished || s2.lost) ota.link.detach(); else ota.link.close();   // (finished: it restarts into the new firmware)
+    const isolated = this.session && this.session.isolated;   // (finished: it restarts into the new firmware; with a
+    if (s2.finished && isolated) { await sleep(40); ota.link.closeNow(); }           //  MidiSession restart() lets MIDI go)
+    else if (s2.finished || s2.lost) ota.link.detach(); else ota.link.close();
     this.log(`step 2: ${s2.served} requests in ${Math.round((Date.now() - t2) / 1000)} s: ${outcome(s2)}`);
     return s2;
   }
@@ -440,8 +557,7 @@ export class Updater {
     step("written");
     if (opts.verify && !opts.product) {
       step("reboot");
-      await gone(ota.link, 15000);
-      await sleep(this.t.reboot);
+      await this.restart(ota.link);
       const back = await this.waitFor((id) => !IS_OTA(id), this.t.back, (s) => step("back", s));
       if (!back) throw fail("noreturn", "the keyboard did not come back after the write: switch it off and on");
       back.link.close();
@@ -451,8 +567,7 @@ export class Updater {
     }
     if (opts.product) {
       step("reboot");
-      await gone(ota.link, 15000);
-      await sleep(this.t.reboot);
+      await this.restart(ota.link);
       const back = await this.waitFor((id) => !IS_OTA(id), this.t.back, (s) => step("back", s));
       if (!back) throw fail("noreturn", "the FM-1 did not come back after the write: power-cycle it");
       back.link.close();

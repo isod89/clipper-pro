@@ -77,7 +77,7 @@ static void smo_put(uint32_t pkt)                      /* producer: one packet, 
     if (SMO_RING - (w - smo.r) < n) {
         smo.drops++;
         if (off && (smo.on[ch][k >> 5] >> (k & 31u)) & 1u)
-            smo.flush = 1;                             /* a note-off lost: the flush ends it (and the others) */
+            smo.flush = 2;                             /* a note-off lost: the flush ends it (and the others) */
         return;
     }
     for (i = 0; i < n; i++)
@@ -160,8 +160,9 @@ static void smo_tick(void)                             /* the TIMER5 tick: at mo
     if (smo.r == smo.w) {
         if (!smo.flush)
             return;
-        if (!smo.fn)
-            smo.fpos = 0;                              /* (a new flush: from the start) */
+        if (!smo.fn || smo.flush == 2u)
+            smo.fpos = 0;                              /* (a new flush, or one asked again while it ran: from the start) */
+        smo.flush = 1;
         smo.fi = 0;
         if (!(smo.fn = (uint8_t)smo_flush_next())) {
             smo.flush = 0;
@@ -179,7 +180,7 @@ static void smo_tick(void)                             /* the TIMER5 tick: at mo
 static void smo_on(uint32_t on)                        /* the menu: TRS MIDI OUT ON / OFF (ON tries the UART again) */
 {
     if (trs_out && !on)
-        smo.flush = 1;                                 /* OFF: what is still on gets its note-off first */
+        smo.flush = 2;                                 /* OFF: what is still on gets its note-off first */
     trs_out = (uint8_t)(on != 0u);
     smo.lost = 0;
     smo.dead = 0;

@@ -65,6 +65,20 @@ int main(void)
     ok(e == 0 && l.rest == 0, "... then that reading is the rest: up, the sustain let go");
     ch = 0;
     ok(feed(&l, 871, 3, &ms, &ch) == 1 && feed(&l, 0, 3, &ms, &ch) == 0 && ch == 2, "... and the pedal works from then on");
+    /* (after Clipper Pro 1.2) a pedal used the right way round (down, then up 30 s): held down three minutes (a drone), the sustain
+     * stays (it was let go at 2:00, and the pedal then worked the wrong way round) */
+    {
+        smk_ped_t d = {0};
+        ms = 0, ch = 0;
+        feed(&d, 871, 50, &ms, &ch);
+        ok(feed(&d, 0, 300, &ms, &ch) == 1 && feed(&d, 871, (int)SMK_PED_PROVEN_MS + 100, &ms, &ch) == 0 && ch == 2,
+           "a pedal pressed and let go (up 30 s): its polarity proven");
+        ch = 0;
+        ok(feed(&d, 0, 3, &ms, &ch) == 1 && feed(&d, 0, 180000, &ms, &ch) < 0 && ch == 1 && d.rest == 871,
+           "... held down three minutes: still down (no 2-minute release)");
+        ch = 0;
+        ok(feed(&d, 871, 3, &ms, &ch) == 0 && ch == 1, "... let go: up");
+    }
     printf(fails ? "SMK PEDAL TEST FAILED (%d)\n" : "smk pedal test passed\n", fails);
     return fails != 0;
 }

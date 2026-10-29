@@ -326,7 +326,7 @@ static void con_padtest(void)
     padled_set(9, 0, 40, 0);
     padled_set(10, 0, 0, 40);
     padled_set(11, 40, 40, 40);
-    padled_hold_until = fm1_ms + 20000u;
+    padled_hold_until = ms_deadline(20000u);
     con_puts("top row from the left: red green blue white\r\n");
 }
 #endif

@@ -1,6 +1,6 @@
 # Clipper Pro — démarrage rapide (SMK-37)
 
-Clipper Pro 1.2, c'est le synthétiseur Clipper 1.1 (avec les correctifs de SLOOP 2.8.3) sur le clavier M-VAVE SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play).
+Clipper Pro 1.3, c'est le synthétiseur Clipper 1.3 (avec les correctifs de SLOOP 2.8.3 et ceux de la 1.3) sur le clavier M-VAVE SMK-37 (Pro, Elite, MKE-P37, Starrykey 37 Play).
 Le manuel de Clipper ([DEMARRAGE-RAPIDE-FR.md](DEMARRAGE-RAPIDE-FR.md)) reste valable : chaque commande du FM-1 a sa
 place sur le SMK-37. Les commandes en plus (pads, faders, molettes, pédale, touches extrêmes) jouent le synthé.
 La référence complète : [CLIPPER-PRO.md](CLIPPER-PRO.md).
@@ -57,9 +57,10 @@ Elles sortent aussi en MIDI (USB et prise TRS), comme les touches.
   genre sa couleur, le son actuel en blanc. Un pad charge le son et le fait entendre ; `<` `>` les pages ; KNOB BANK ou
   PATCH referme.
 - Un bouton de couche tenu : SEQ = les 16 pas (rangée du haut 1 à 8), SCALE (SEL) = un petit piano (un pad choisit la
-  tonalité), FX = les 16 effets punch-in, GLOBE (GLO) = FILL (9), FILL à la mesure (10), TAP tempo (16), BT (SAVE) = les
-  parties A à D (1–4 jouer, 5–8 enregistrer, 13 LOOP / SONG, 14 SONG REC, 16 la page SONG). Les cases qui font quelque
-  chose sont allumées faiblement, celle qui est active fort.
+  tonalité), ARP = note repeat (un pad tenu se répète sur la grille, enregistré en ratchets), PARA (EDIT) = effacer,
+  GLOBE (GLO) = FILL (9), FILL à la mesure (10), TAP tempo (16). FX et BT (SAVE) ne sont pas des couches sur Clipper :
+  tenus, les pads et les touches continuent de jouer, et un appui ouvre leurs pages. Les cases qui font quelque chose
+  sont allumées faiblement, celle qui est active fort.
 
 ## Les boutons
 

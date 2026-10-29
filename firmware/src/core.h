@@ -535,6 +535,15 @@ static int trk_silent(const track_t *t)
 }
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+/* a deadline n ms from now (0 = none), and whether it is still ahead: an expired one is cleared, so it never reads as
+ * ahead again when fm1_ms has run 2^31 past it (24.9 days) */
+static inline uint32_t ms_deadline(uint32_t n) { uint32_t t = fm1_ms + n; return t ? t : 1u; }
+static inline int ms_pending(uint32_t *t)
+{
+    if (*t && (int32_t)(fm1_ms - *t) >= 0)
+        *t = 0;
+    return *t != 0u;
+}
 /* Two early failed boots -> USB recovery; recovery reset -> mask-ROM UBOOT. */
 #include "bootguard.h"
 bootguard_t bootguard __attribute__((section(".noinit")));

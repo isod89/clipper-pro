@@ -9,6 +9,7 @@
 //   and the user-sample pipeline byte for byte against tools/sampleio.py
 // - fm1pkg.js: productOf and logicalImage on build/felucca.fwsc (skipped without a build)
 // - fm1ota.js: a full install and an unplug during the write against a simulated FM-1
+// - smkota.js: Chrome's MIDI let go while the keyboard restarts (MidiSession, sloop-pro #3)
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -524,7 +525,7 @@ async function editorBackup() {
   const info = E.parse[C.INFO](await rq(E.req.info()));
   ok(info.proto >= 6, "backup: INFO protocol v6 or later");
   const ec = readFileSync(join(HERE, "../firmware/src/editor.c"), "utf8");
-  ok(/ED_BK_IDS\[\] = \{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 32, 33, 34, 35\}/.test(ec), "backup: the object ids == editor.c ED_BK_IDS (35: USR4, 9: SYN kits)");
+  ok(/ED_BK_IDS\[\] = \{0, 1, 2, 3, 4, 5, 6, 7, 8, 9,\n#if CLIPPER_SYNTH\n\s*12, 13, 14,\n#endif\n\s*32, 33, 34, 35\}/.test(ec), "backup: the object ids == editor.c ED_BK_IDS (35: USR4, 9: SYN kits, 12 / 13: the user presets' side records / tails, 14: the projects' 1.0 blocks)");
   await rq(E.req.upStore(3, "BACKUP ME"));
   await rq(E.req.project(1, 2), { timeout: 4000, retries: 0 });
   const s = Int16Array.from({ length: 3000 }, (_, i) => Math.round(8000 * Math.sin(i / 7)));
@@ -1678,6 +1679,145 @@ sys.stdout.buffer.write(b"".join(raw[i * 48:i * 48 + 47] for i in range(20)) + r
   ok(/^FM-1_9\d\d$/.test(productOf(raw)), "fm1pkg.js productOf");
 }
 
+/* ------------- sloop-pro #3: Chrome's MIDI let go while the keyboard restarts (smkota.js, MidiSession) --- */
+/* "The installer freezes my Chrome browser when installing via usb" (ChanceTheMaker: "MIDI is not released when the
+   device reboots into flashing mode"). Chrome's MIDI as Chromium's sources do it (media/midi/midi_service.cc,
+   midi_manager_win.cc, Blink's MIDIPort): the browser opens every device while any document holds a MIDIAccess,
+   whatever the page's port.open() / close() say, and lets them go when the last such document ends (an iframe
+   removed; the page's own document only with the tab). On Windows a keyboard that leaves the USB while the browser
+   holds it wedges Chrome's MIDI thread (which WinMM call blocks: to be confirmed on hardware): no message moves any
+   more, no new MIDIAccess is given, and ending a session then blocks the browser (here: the event loop, 1.5 s). */
+async function midiRestarts() {
+  const lib = await import("./smkota.js");
+  const U = lib.Updater, MidiSession = lib.MidiSession;
+  class Chrome {
+    constructor() { this.docs = new Set(); this.wedged = false; this.froze = 0; this.leaves = 0; this.held = 0; }
+    request(doc, access) { if (this.wedged) return new Promise(() => {}); this.docs.add(doc); return Promise.resolve(access); }
+    end(doc) {
+      if (!this.docs.delete(doc) || !this.wedged) return;
+      const t = Date.now() + 1500;
+      while (Date.now() < t);
+      this.froze++;
+    }
+    leave() { this.leaves++; if (this.docs.size) { this.held++; this.wedged = true; } }
+  }
+  /* an SMK-37 Pro: step 1, its loader, the write, the new firmware (each restart 300 ms after the last answer) */
+  class Kbd {
+    constructor(chrome, image) {
+      this.chrome = chrome; this.image = image; this.access = { inputs: new Map(), outputs: new Map(), onstatechange: null };
+      this.late = 0; this.closes = 0; this.served = 0;
+      this.boot("SMK-37 Pro_016");
+    }
+    boot(identity) {
+      if (this.access.inputs.size) this.chrome.leave();
+      for (const m of [this.access.inputs, this.access.outputs]) { for (const p of m.values()) p.state = "disconnected"; m.clear(); }
+      this.identity = identity; this.waiting = null; this.queue = [];
+      const id = Math.random().toString(36).slice(2), k = this;
+      const port = (kind) => ({ id: kind + id, name: "SMK-37 Pro", state: "connected", onstatechange: null, open: async () => {},
+                                close: async () => { k.closes++; } });
+      this.input = { ...port("i"), onmidimessage: null };
+      this.output = { ...port("o"), send(d) {
+        if (this.state !== "connected") { k.late++; return; }   /* Chrome: no exception, the message waits for the port */
+        if (!k.chrome.wedged) setTimeout(() => k.rx(Array.from(d)), 1);
+      } };
+      this.access.inputs.set(this.input.id, this.input);
+      this.access.outputs.set(this.output.id, this.output);
+    }
+    tx(b) { const i = this.input; setTimeout(() => { if (i.state === "connected" && i.onmidimessage && !this.chrome.wedged) i.onmidimessage({ data: Uint8Array.from(b) }); }, 1); }
+    rx(d) {
+      if (eq(d, HS)) {
+        const t = [...new TextEncoder().encode(this.identity)];
+        this.tx([0xF0, ...pack7([0, 0x59, 0x11, 0, 0, 0, ...t, ...new Array(28 - t.length).fill(0)]), 0xF7]);
+      } else if (eq(d, UPGRADE)) {
+        this.queue = this.identity.startsWith("ota-") ? [[0, 512], [512, 512], [0xF0000000, 8]] : [[0, 64], [0x40, 160], [0xE0000000, 8]];
+        this.next();
+      } else if (this.waiting) {
+        const [addr] = this.waiting;
+        this.waiting = null; this.served++;
+        if (addr === 0xE0000000) setTimeout(() => this.boot("ota-SMK-37 Pro_900"), 300);
+        else if (addr === 0xF0000000) setTimeout(() => this.boot("SMK-37 Pro_900"), 300);
+        else this.next();
+      }
+    }
+    next() {
+      const r = this.queue.shift();
+      if (!r) return;
+      this.waiting = r;
+      const [addr, len] = r;
+      const u = [0, 0x59, 0x30, 0, 0, 0, 0, addr & 0xFF, (addr >>> 8) & 0xFF, (addr >>> 16) & 0xFF, (addr >>> 24) & 0xFF, len & 0xFF, len >> 8, 0];
+      let s = 0;
+      for (let i = 6; i < 14; i++) s += u[i];
+      u.push(~s & 0xFF);
+      this.tx([0xF0, ...pack7(u), 0xF7]);
+    }
+  }
+  /* a document whose iframes each get their own MIDIAccess from Chrome */
+  const page = (chrome, kbd) => {
+    const frames = new Set();
+    return { frames, createElement: () => ({ hidden: false, attrs: {}, contentWindow: null, setAttribute(k, v) { this.attrs[k] = v; },
+               remove() { if (frames.delete(this)) { this.contentWindow = null; chrome.end(this); } } }),
+             body: { appendChild(f) { frames.add(f); f.contentWindow = { navigator: { requestMIDIAccess: () => chrome.request(f, kbd.access) } }; return f; } } };
+  };
+  const image = Uint8Array.from({ length: 0x2000 }, (_, i) => (i * 7) & 0xFF);
+  const timing = { loader: 4000, jumped: 4000, back: 4000, settle: 200, reboot: 300, away: 1000, step1Idle: 3000 };
+  const watch = () => {                                 /* the watchdog: the longest the event loop was blocked */
+    const w = { lag: 0, last: Date.now() };
+    w.id = setInterval(() => { const n = Date.now(); w.lag = Math.max(w.lag, n - w.last - 50); w.last = n; }, 50);
+    return w;
+  };
+  {   /* the way the page did it: one MIDIAccess of the page's own document, never let go: the keyboard leaves the USB
+         while Chrome holds it (the model's hang; its loader is never seen) */
+    const chrome = new Chrome(), kbd = new Kbd(chrome, image);
+    const access = await chrome.request("page", kbd.access);
+    const e = await new U(access, null, { timing }).install(image, "SMK-37 Pro_900").then(() => null, (x) => x);
+    ok(e && e.code === "noloader" && chrome.wedged && chrome.held === 1,
+      `smkota.js (#3): the page's own MIDIAccess holds the keyboard through its restart (reproduced: ${e && e.code})`);
+  }
+  if (typeof MidiSession !== "function") { ok(false, "smkota.js (#3): MidiSession: Chrome's MIDI in a disposable document"); return; }
+  {   /* with a MidiSession: let go 40 ms after the last answer, before the keyboard leaves; a new one once it is back */
+    const chrome = new Chrome(), kbd = new Kbd(chrome, image), doc = page(chrome, kbd);
+    const session = new MidiSession(doc, null), log = [], w = watch();
+    const access = await session.open();
+    let tm;
+    const r = await Promise.race([new U(access, (t) => log.push(t), { session, timing }).install(image, "SMK-37 Pro_900").catch((x) => x),
+                                  new Promise((res) => { tm = setTimeout(() => res(null), 30000); })]);
+    clearTimeout(tm);
+    await session.release();
+    clearInterval(w.id);
+    ok(r === "SMK-37 Pro_900" && session.isolated, `smkota.js (#3): install with a MidiSession: through both restarts (${r && r.message || r})`);
+    ok(chrome.leaves === 2 && chrome.held === 0 && !chrome.wedged && chrome.froze === 0 && w.lag < 1000 && session.ends === 3,
+      `smkota.js (#3): Chrome's MIDI let go at both restarts, nothing wedged or blocked (${chrome.held} held, ${w.lag} ms)`);
+    ok(chrome.docs.size === 0 && doc.frames.size === 0 && kbd.late === 0 && log.filter((t) => /MIDI let go/.test(t)).length === 2,
+      "smkota.js (#3): nothing sent to a port that is gone; no document holds MIDI at the end");
+  }
+  {   /* release(): no handler left (messages, state changes), the iframe removed; a second release is harmless */
+    const chrome = new Chrome(), kbd = new Kbd(chrome, image), doc = page(chrome, kbd);
+    const session = new MidiSession(doc, null);
+    const a = await session.open();
+    a.onstatechange = () => {}; kbd.input.onmidimessage = () => {}; kbd.input.onstatechange = () => {};
+    await session.release(); await session.release();
+    ok(a.onstatechange === null && kbd.input.onmidimessage === null && kbd.input.onstatechange === null && doc.frames.size === 0
+       && chrome.docs.size === 0 && session.access === null && session.ends === 1,
+      "MidiSession.release: handlers cleared (onmidimessage, onstatechange), its document ended");
+  }
+  {   /* no document (or an iframe without Web MIDI): the page's own navigator, one access kept; release() closes the
+         ports with a deadline (a close that never answers does not stop it); Updater then watches the ports as before */
+    const chrome = new Chrome(), kbd = new Kbd(chrome, image);
+    let asked = 0;
+    const nav = { requestMIDIAccess: () => { asked++; return chrome.request("page", kbd.access); } };
+    const s1 = new MidiSession(null, nav);
+    const a1 = await s1.open();
+    kbd.output.close = () => new Promise(() => {});
+    const t0 = Date.now();
+    await s1.release();
+    const a2 = await s1.open();
+    const bare = new MidiSession({ createElement: () => ({ remove() {}, contentWindow: {} }), body: { appendChild() {} } }, nav);
+    await bare.open();
+    ok(a1 === kbd.access && a2 === a1 && asked === 2 && !s1.isolated && !bare.isolated && kbd.closes === 1 && Date.now() - t0 < 1500,
+      "MidiSession without an iframe: the page's own MIDIAccess, ports closed with a deadline");
+  }
+}
+
 /* ------------------------------------------------- update protocol (fm1ota.js) --- */
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
@@ -1819,7 +1959,19 @@ async function updater() {
   const pk = await import(join(HERE, "fm1pkg.js"));
   const notStock = new Uint8Array(pk.STOCK_V15_SIZE);
   const e6 = await pk.validateStockPackage(notStock).then(() => null, (x) => x);
-  ok(e6 && /official FM-1 V15/.test(e6.message), "fm1pkg.js: only the exact official V15 is accepted (SHA-256)");
+  ok(e6 && /official FM-1 file/.test(e6.message), "fm1pkg.js: only the exact official V15 / V16 is accepted (SHA-256)");
+  /* (after 1.2, sloop-fm1 #8) V16, the file M-VAVE now offers, is accepted too: its size, digest and identity pinned;
+   * a file of its size with other bytes is not. FM1_V16=path/FM-1.fwsc (M-VAVE's V16, not shipped here) checks the
+   * real file */
+  ok(pk.STOCK_V16_SIZE === 718196 && pk.STOCK_V16_PRODUCT === "FM-1_016" && pk.STOCK_FM1.length === 2 &&
+     pk.STOCK_FM1.some((k) => k.product === "FM-1_015"), "fm1pkg.js: the official FM-1 V16 and V15 pinned");
+  const e7 = await pk.validateStockPackage(new Uint8Array(pk.STOCK_V16_SIZE)).then(() => null, (x) => x);
+  ok(e7 && /official FM-1 file/.test(e7.message), "fm1pkg.js: a file of V16's size, other bytes: refused");
+  if (process.env.FM1_V16) {
+    const v = await pk.validateStockPackage(new Uint8Array(readFileSync(process.env.FM1_V16)));
+    ok(v.product === "FM-1_016" && v.version === "V16" && v.image.length === pk.STOCK_V16_SIZE - 20,
+       "fm1pkg.js: M-VAVE's FM-1 V16 accepted (identity FM-1_016)");
+  }
 }
 
 await editorMock();
@@ -1849,5 +2001,6 @@ samplesMatch();
 chopTests();
 await packages();
 await updater();
+await midiRestarts();
 console.log(failed ? `WEB TESTS FAILED (${failed})` : "web tests passed");
 process.exit(failed ? 1 : 0);

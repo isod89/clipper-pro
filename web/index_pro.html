@@ -341,18 +341,21 @@ function choose(idText) {
   return c;
 }
 
-let midi = null;
+/* Chrome's MIDI in a disposable document (MidiSession, after ChanceTheMaker's sloop-smk; sloop-pro #3): held only while
+   the page talks to the keyboard, let go while it restarts (into its loader, into Clipper Pro) and once it is done, so
+   Chrome does not hold the keyboard while it leaves the USB and comes back (on Windows that froze Chrome) */
+const session = new MidiSession(document, navigator);
+window.addEventListener("pagehide", () => { session.release(); });
 $("go").addEventListener("click", async () => {
   if (writing) return;
   if (!$("risk").checked) { sayK("needRisk", "", "bad"); return; }
   lockAll(true);
   $("bar").value = 0;
-  /* one MIDI access for the page's whole life (as the reference installer): a new one per click leaves the ports of
-     the old one to the garbage collector, and Windows' Chrome then sees a port it cannot open */
-  try { midi = midi || await navigator.requestMIDIAccess({ sysex: true }); }
-  catch (e) { sayK("denied", "", "bad"); lockAll(false); return; }
+  let midi;
+  try { midi = await session.open(); }
+  catch (e) { sayK("denied", "", "bad"); log(String(e && e.message || e)); await session.release(); lockAll(false); return; }
   try {
-    const up = new Updater(midi, log);
+    const up = new Updater(midi, log, { session });
     /* the keyboard on its named port, running or left in update mode; a loader under a generic name: looked for too */
     const dev = (await up.find(null)) || (await up.find((id) => /^ota-/i.test(id.model), true));
     const ota = dev && /^ota-/i.test(dev.id.model) ? dev : null;   /* left in update mode: the write resumes */
@@ -366,6 +369,7 @@ $("go").addEventListener("click", async () => {
       if (!(await up.resume(image, step, { package: c.product, anyModel: c.anyModel, verify: true }))) throw pfail("stopped");
     } else await up.install(image, c.product, step, c.anyModel, { refuseOldStock: true });
   } catch (e) { failed(e); }
+  await session.release();                         /* (done or not: the keyboard is not held between two clicks) */
   lockAll(false);
 });
 </script>

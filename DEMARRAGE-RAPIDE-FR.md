@@ -243,4 +243,4 @@ Certains entendent un craquement ou un bruit dans le canal gauche, avec la réve
 ## Revenir en arrière
 
 - **Vers SLOOP** : lance `INSTALL-SLOOP.bat` depuis le dossier de SLOOP. Un son réglé sur HYBRID y jouera un autre moteur.
-- **Vers le firmware officiel** : passe par la page d'installation (« Revenir au firmware officiel (V15) »), après avoir fait une sauvegarde.
+- **Vers le firmware officiel** : passe par la page d'installation (« Revenir au firmware officiel », avec le FM-1.fwsc officiel de M-VAVE : V16, ou V15), après avoir fait une sauvegarde.

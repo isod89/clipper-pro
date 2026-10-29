@@ -92,10 +92,22 @@ export async function sha256hex(bytes) {
   return [...new Uint8Array(d)].map((x) => x.toString(16).padStart(2, "0")).join("");
 }
 
+// The official FM-1 V16 (2026-10-21; since then the only one M-VAVE offers): the same checks (after Clipper Pro 1.2:
+// only V15 was accepted, so the way back failed with the file M-VAVE now gives; sloop-fm1 #8). The firmware's own
+// update entry (ota.c) still checks the package's loader (the official one's CRCs) and that its head equals the FM-1's
+export const STOCK_V16_SHA256 = "d017fb65e70aca97ee29d944470c3515a74581df5c0576bf70de917c7b2b61d5";
+export const STOCK_V16_SIZE = 718196;
+export const STOCK_V16_PRODUCT = "FM-1_016";
+export const STOCK_FM1 = [
+  { version: "V16", size: STOCK_V16_SIZE, sha256: STOCK_V16_SHA256, product: STOCK_V16_PRODUCT },
+  { version: "V15", size: STOCK_V15_SIZE, sha256: STOCK_V15_SHA256, product: STOCK_V15_PRODUCT },
+];
+
 export async function validateStockPackage(bytes) {
-  for (const [size, sha, product] of [[STOCK_V15_SIZE, STOCK_V15_SHA256, STOCK_V15_PRODUCT],
-                                      [STOCK_SMK016_SIZE, STOCK_SMK016_SHA256, STOCK_SMK016_PRODUCT]])
+  for (const [size, sha, product, version] of [[STOCK_V16_SIZE, STOCK_V16_SHA256, STOCK_V16_PRODUCT, "V16"],
+                                               [STOCK_V15_SIZE, STOCK_V15_SHA256, STOCK_V15_PRODUCT, "V15"],
+                                               [STOCK_SMK016_SIZE, STOCK_SMK016_SHA256, STOCK_SMK016_PRODUCT, "V016"]])
     if (bytes.length === size && await sha256hex(bytes) === sha && productOf(bytes) === product)
-      return { product, image: logicalImage(bytes) };
-  throw new Error("select the unmodified official FM-1 V15 file (FM-1.fwsc) or SMK-37 Pro V016 file (SMK-37_Pro_016.fwsc)");
+      return { product, version, image: logicalImage(bytes) };
+  throw new Error("select the unmodified official FM-1 file (FM-1.fwsc, V16 or V15) or SMK-37 Pro V016 file (SMK-37_Pro_016.fwsc)");
 }
